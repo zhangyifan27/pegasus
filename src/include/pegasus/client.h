@@ -98,10 +98,10 @@ public:
 
     struct scan_options
     {
-        int timeout_ms;           // RPC call timeout param, in milliseconds
-        int batch_size;           // max k-v count one RPC call
-        bool start_inclusive;     // will be ingored when get_unordered_scanners()
-        bool stop_inclusive;      // will be ingored when get_unordered_scanners()
+        int timeout_ms;       // RPC call timeout param, in milliseconds
+        int batch_size;       // max k-v count one RPC call
+        bool start_inclusive; // will be ingored when get_unordered_scanners()
+        bool stop_inclusive;  // will be ingored when get_unordered_scanners()
         filter_type hash_key_filter_type;
         std::string hash_key_filter_pattern;
         filter_type sort_key_filter_type;

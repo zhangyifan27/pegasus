@@ -6,6 +6,12 @@
 
 #include "key_ttl_compaction_filter.h"
 #include "pegasus_scan_context.h"
+#include "pegasus_write_service.h"
+
+#include "base/string_view.h"
+#include "base/pegasus_value_schema.h"
+#include "base/pegasus_rpc_types.h"
+
 #include <rocksdb/db.h>
 #include <rrdb/rrdb.server.h>
 #include <vector>
@@ -28,15 +34,6 @@ public:
     virtual ~pegasus_server_impl() {}
 
     // the following methods may set physical error if internal error occurs
-    virtual void on_put(const ::dsn::apps::update_request &update,
-                        ::dsn::rpc_replier<::dsn::apps::update_response> &reply) override;
-    virtual void on_multi_put(const ::dsn::apps::multi_put_request &args,
-                              ::dsn::rpc_replier<::dsn::apps::update_response> &reply) override;
-    virtual void on_remove(const ::dsn::blob &key,
-                           ::dsn::rpc_replier<::dsn::apps::update_response> &reply) override;
-    virtual void
-    on_multi_remove(const ::dsn::apps::multi_remove_request &args,
-                    ::dsn::rpc_replier<::dsn::apps::multi_remove_response> &reply) override;
     virtual void on_get(const ::dsn::blob &key,
                         ::dsn::rpc_replier<::dsn::apps::read_response> &reply) override;
     virtual void on_multi_get(const ::dsn::apps::multi_get_request &args,
@@ -65,8 +62,15 @@ public:
     //  - ERR_FILE_OPERATION_FAILED
     virtual ::dsn::error_code stop(bool clear_state) override;
 
+    /// Each of the write request (specifically, the rpc that's configured as write, see
+    /// option `rpc_request_is_write_operation` in the configuration file) will first be
+    /// replicated to the replicas through the underlying PacificA protocol in rDSN, and
+    /// after being committed, the mutation will be applied into rocksdb by this function.
+    ///
+    /// \see dsn::replication::replication_app_base::apply_mutation
+    /// \inherit dsn::replication::replication_app_base
     virtual int on_batched_write_requests(int64_t decree,
-                                          int64_t timestamp,
+                                          uint64_t timestamp,
                                           dsn_message_t *requests,
                                           int count) override;
 
@@ -135,6 +139,64 @@ public:
 
     virtual int64_t last_durable_decree() const { return _last_durable_decree.load(); }
 
+    // The cluster id of this pegasus cluster.
+    uint8_t cluster_id() const { return _cluster_id; }
+
+    inline bool check_if_record_expired(uint32_t epoch_now, rocksdb::Slice raw_value)
+    {
+        return pegasus::check_if_record_expired(
+            _value_schema_version, epoch_now, to_string_view(raw_value));
+    }
+
+    /// =============================================================== ///
+    /// === Methods for implementation of on_batched_write_requests === ///
+    /// =============================================================== ///
+
+    int on_batched_write_requests_impl(dsn_message_t *requests,
+                                       int count,
+                                       int64_t decree,
+                                       uint64_t timestamp);
+
+    int on_multi_put(multi_put_rpc &rpc)
+    {
+        return _write_svc->multi_put(_put_ctx, rpc.request(), rpc.response());
+    }
+
+    int on_multi_remove(multi_remove_rpc &rpc)
+    {
+        return _write_svc->multi_remove(_remove_ctx, rpc.request(), rpc.response());
+    }
+
+    int on_duplicate(duplicate_rpc &rpc)
+    {
+        rpc.response().error = on_duplicate_impl(false, *rpc.mutable_request());
+        return rpc.response().error;
+    }
+
+    int on_duplicate_impl(bool batched, dsn::apps::duplicate_request &request);
+
+    /// Delay replying for the batched requests until all of them completes.
+    int on_batched_writes(dsn_message_t *requests, int count, int64_t decree);
+
+    void on_single_put_in_batch(const put_rpc &rpc)
+    {
+        _write_svc->batch_put(_put_ctx, rpc.request());
+        request_key_check(_put_ctx.decree, rpc.dsn_request(), rpc.request().key);
+    }
+
+    void on_single_remove_in_batch(const remove_rpc &rpc)
+    {
+        _write_svc->batch_remove(_remove_ctx, rpc.request());
+        request_key_check(_remove_ctx.decree, rpc.dsn_request(), rpc.request());
+    }
+
+    void on_single_duplicate_in_batch(const duplicate_rpc &rpc)
+    {
+        on_duplicate_impl(true, *rpc.mutable_request());
+    }
+
+    void request_key_check(int64_t decree, dsn_message_t m, const dsn::blob &key);
+
 private:
     // parse checkpoint directories in the data dir
     // checkpoint directory format is: "checkpoint.{decree}"
@@ -189,9 +251,15 @@ private:
     std::pair<std::string, bool> get_restore_dir_from_env(int argc, char **argv);
 
 private:
+    friend class pegasus_write_service;
+    friend class pegasus_write_service_test;
+    friend class pegasus_sever_impl_test;
+
     dsn::gpid _gpid;
     std::string _primary_address;
     bool _verbose_log;
+
+    uint8_t _cluster_id;
 
     KeyWithTTLCompactionFilter _key_ttl_compaction_filter;
     rocksdb::Options _db_opts;
@@ -203,12 +271,13 @@ private:
     uint32_t _value_schema_version;
     std::atomic<int64_t> _last_durable_decree;
 
-    rocksdb::WriteBatch _batch;
-    std::vector<::dsn::rpc_replier<::dsn::apps::update_response>> _batch_repliers;
-    std::vector<::dsn::perf_counter *> _batch_perfcounters;
+    std::unique_ptr<pegasus_write_service> _write_svc;
+    std::vector<put_rpc> _put_rpc_batch;
+    std::vector<remove_rpc> _remove_rpc_batch;
+    std::vector<duplicate_rpc> _batched_duplicate_rpc_batch;
+    db_write_context _put_ctx;
+    db_write_context _remove_ctx;
 
-    std::string _write_buf;
-    std::vector<rocksdb::Slice> _write_slices;
     int _physical_error;
 
     uint32_t _checkpoint_reserve_min_count;
@@ -226,18 +295,10 @@ private:
     ::dsn::perf_counter_wrapper _pfc_get_qps;
     ::dsn::perf_counter_wrapper _pfc_multi_get_qps;
     ::dsn::perf_counter_wrapper _pfc_scan_qps;
-    ::dsn::perf_counter_wrapper _pfc_put_qps;
-    ::dsn::perf_counter_wrapper _pfc_multi_put_qps;
-    ::dsn::perf_counter_wrapper _pfc_remove_qps;
-    ::dsn::perf_counter_wrapper _pfc_multi_remove_qps;
 
     ::dsn::perf_counter_wrapper _pfc_get_latency;
     ::dsn::perf_counter_wrapper _pfc_multi_get_latency;
     ::dsn::perf_counter_wrapper _pfc_scan_latency;
-    ::dsn::perf_counter_wrapper _pfc_put_latency;
-    ::dsn::perf_counter_wrapper _pfc_multi_put_latency;
-    ::dsn::perf_counter_wrapper _pfc_remove_latency;
-    ::dsn::perf_counter_wrapper _pfc_multi_remove_latency;
 
     ::dsn::perf_counter_wrapper _pfc_recent_expire_count;
     ::dsn::perf_counter_wrapper _pfc_recent_filter_count;

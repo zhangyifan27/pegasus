@@ -1,0 +1,20 @@
+// Copyright (c) 2017, Xiaomi, Inc.  All rights reserved.
+// This source code is licensed under the Apache License Version 2.0, which
+// can be found in the LICENSE file in the root directory of this source tree.
+
+#pragma once
+
+#include <dsn/dist/replication/fmt_logging.h>
+
+/// This file contains utilities for logging about the operation on rocksdb.
+/// It should only be used in pegasus_sever_impl.
+
+#define derror_rocksdb(op, error, ...)                                                             \
+    derror_f("{}: rocksdb {} failed: error = {} [{}]",                                             \
+             replica_name(),                                                                       \
+             op,                                                                                   \
+             error,                                                                                \
+             fmt::format(__VA_ARGS__))
+
+#define ddebug_rocksdb(op, ...)                                                                    \
+    ddebug_f("{}: rocksdb {}: [{}]", replica_name(), op, fmt::format(__VA_ARGS__))

@@ -3,11 +3,17 @@
 // can be found in the LICENSE file in the root directory of this source tree.
 
 #include "pegasus_server_impl.h"
-#include <pegasus_key_schema.h>
-#include <pegasus_value_schema.h>
-#include <pegasus_utils.h>
+#include "pegasus_duplication_backlog_handler.h"
+#include "rocksdb_logging.h"
+
+#include "base/pegasus_rpc_types.h"
+#include "base/pegasus_key_schema.h"
+#include "base/pegasus_value_schema.h"
+#include "base/pegasus_utils.h"
+
 #include <dsn/utility/utils.h>
 #include <dsn/utility/filesystem.h>
+#include <dsn/utility/message_utils.h>
 #include <rocksdb/utilities/checkpoint.h>
 #include <rocksdb/table.h>
 #include <boost/lexical_cast.hpp>
@@ -50,6 +56,9 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
                                              "rocksdb_verbose_log",
                                              false,
                                              "print verbose log for debugging, default is false");
+
+    _cluster_id = static_cast<uint8_t>(dsn_config_get_value_uint64(
+        "pegasus.server", "pegasus_cluster_id", 1, "The ID of this pegasus cluster."));
 
     // init db options
 
@@ -168,22 +177,6 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
     _pfc_scan_qps.init_app_counter(
         "app.pegasus", buf, COUNTER_TYPE_RATE, "statistic the qps of SCAN request");
 
-    snprintf(buf, 255, "put_qps@%s", str_gpid);
-    _pfc_put_qps.init_app_counter(
-        "app.pegasus", buf, COUNTER_TYPE_RATE, "statistic the qps of PUT request");
-
-    snprintf(buf, 255, "multi_put_qps@%s", str_gpid);
-    _pfc_multi_put_qps.init_app_counter(
-        "app.pegasus", buf, COUNTER_TYPE_RATE, "statistic the qps of MULTI_PUT request");
-
-    snprintf(buf, 255, "remove_qps@%s", str_gpid);
-    _pfc_remove_qps.init_app_counter(
-        "app.pegasus", buf, COUNTER_TYPE_RATE, "statistic the qps of REMOVE request");
-
-    snprintf(buf, 255, "multi_remove_qps@%s", str_gpid);
-    _pfc_multi_remove_qps.init_app_counter(
-        "app.pegasus", buf, COUNTER_TYPE_RATE, "statistic the qps of MULTI_REMOVE request");
-
     snprintf(buf, 255, "get_latency@%s", str_gpid);
     _pfc_get_latency.init_app_counter("app.pegasus",
                                       buf,
@@ -201,30 +194,6 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
                                        buf,
                                        COUNTER_TYPE_NUMBER_PERCENTILES,
                                        "statistic the latency of SCAN request");
-
-    snprintf(buf, 255, "put_latency@%s", str_gpid);
-    _pfc_put_latency.init_app_counter("app.pegasus",
-                                      buf,
-                                      COUNTER_TYPE_NUMBER_PERCENTILES,
-                                      "statistic the latency of PUT request");
-
-    snprintf(buf, 255, "multi_put_latency@%s", str_gpid);
-    _pfc_multi_put_latency.init_app_counter("app.pegasus",
-                                            buf,
-                                            COUNTER_TYPE_NUMBER_PERCENTILES,
-                                            "statistic the latency of MULTI_PUT request");
-
-    snprintf(buf, 255, "remove_latency@%s", str_gpid);
-    _pfc_remove_latency.init_app_counter("app.pegasus",
-                                         buf,
-                                         COUNTER_TYPE_NUMBER_PERCENTILES,
-                                         "statistic the latency of REMOVE request");
-
-    snprintf(buf, 255, "multi_remove_latency@%s", str_gpid);
-    _pfc_multi_remove_latency.init_app_counter("app.pegasus",
-                                               buf,
-                                               COUNTER_TYPE_NUMBER_PERCENTILES,
-                                               "statistic the latency of MULTI_REMOVE request");
 
     snprintf(buf, 255, "recent.expire.count@%s", str_gpid);
     _pfc_recent_expire_count.init_app_counter("app.pegasus",
@@ -410,280 +379,14 @@ void pegasus_server_impl::gc_checkpoints()
 }
 
 int pegasus_server_impl::on_batched_write_requests(int64_t decree,
-                                                   int64_t timestamp,
+                                                   uint64_t timestamp,
                                                    dsn_message_t *requests,
                                                    int count)
 {
     dassert(_is_open, "");
     dassert(requests != nullptr, "");
-    uint64_t start_time = dsn_now_ns();
 
-    _physical_error = 0;
-    if (count == 1 &&
-        ((::dsn::message_ex *)requests[0])->local_rpc_code ==
-            ::dsn::apps::RPC_RRDB_RRDB_MULTI_PUT) {
-        _pfc_multi_put_qps->increment();
-        dsn_message_t request = requests[0];
-
-        ::dsn::apps::update_response resp;
-        resp.app_id = _gpid.get_app_id();
-        resp.partition_index = _gpid.get_partition_index();
-        resp.decree = decree;
-        resp.server = _primary_address;
-
-        ::dsn::apps::multi_put_request update;
-        ::dsn::unmarshall(request, update);
-
-        if (update.kvs.empty()) {
-            // invalid argument
-            derror("%s: invalid argument for multi_put: decree = %" PRId64 ", error = empty kvs",
-                   replica_name(),
-                   decree);
-
-            ::dsn::rpc_replier<::dsn::apps::update_response> replier(
-                dsn_msg_create_response(request));
-            if (!replier.is_empty()) {
-                // an invalid operation shoundn't be added to latency calculation
-                resp.error = rocksdb::Status::kInvalidArgument;
-                replier(resp);
-            }
-            return 0;
-        }
-
-        for (auto &kv : update.kvs) {
-            ::dsn::blob raw_key;
-            pegasus_generate_key(raw_key, update.hash_key, kv.key);
-            rocksdb::Slice slice_key(raw_key.data(), raw_key.length());
-            rocksdb::SliceParts skey(&slice_key, 1);
-
-            pegasus_generate_value(_value_schema_version,
-                                   update.expire_ts_seconds,
-                                   kv.value,
-                                   _write_buf,
-                                   _write_slices);
-            rocksdb::SliceParts svalue(&_write_slices[0], _write_slices.size());
-
-            _batch.Put(skey, svalue);
-        }
-
-        _wt_opts.given_decree = decree;
-        rocksdb::Status status = _db->Write(_wt_opts, &_batch);
-        if (!status.ok()) {
-            derror("%s: rocksdb write failed for multi_put: decree = %" PRId64 ", error = %s",
-                   replica_name(),
-                   decree,
-                   status.ToString().c_str());
-            _physical_error = status.code();
-        }
-
-        ::dsn::rpc_replier<::dsn::apps::update_response> replier(dsn_msg_create_response(request));
-        if (!replier.is_empty()) {
-            _pfc_multi_put_latency->set(dsn_now_ns() - start_time);
-            resp.error = status.code();
-            replier(resp);
-        }
-
-        _batch.Clear();
-        return _physical_error;
-    } else if (count == 1 &&
-               ((::dsn::message_ex *)requests[0])->local_rpc_code ==
-                   ::dsn::apps::RPC_RRDB_RRDB_MULTI_REMOVE) {
-        _pfc_multi_remove_qps->increment();
-        dsn_message_t request = requests[0];
-
-        ::dsn::apps::multi_remove_response resp;
-        resp.app_id = _gpid.get_app_id();
-        resp.partition_index = _gpid.get_partition_index();
-        resp.decree = decree;
-        resp.server = _primary_address;
-
-        ::dsn::apps::multi_remove_request update;
-        ::dsn::unmarshall(request, update);
-
-        if (update.sort_keys.empty()) {
-            // invalid argument
-            derror("%s: invalid argument for multi_remove: decree = %" PRId64
-                   ", error = empty sort keys",
-                   replica_name(),
-                   decree);
-
-            ::dsn::rpc_replier<::dsn::apps::multi_remove_response> replier(
-                dsn_msg_create_response(request));
-            if (!replier.is_empty()) {
-                // an invalid operation shoundn't be added to latency calculation
-                resp.error = rocksdb::Status::kInvalidArgument;
-                resp.count = 0;
-                replier(resp);
-            }
-            return 0;
-        }
-
-        for (auto &sort_key : update.sort_keys) {
-            ::dsn::blob raw_key;
-            pegasus_generate_key(raw_key, update.hash_key, sort_key);
-            _batch.Delete(rocksdb::Slice(raw_key.data(), raw_key.length()));
-        }
-
-        _wt_opts.given_decree = decree;
-        rocksdb::Status status = _db->Write(_wt_opts, &_batch);
-        if (!status.ok()) {
-            derror("%s: rocksdb write failed for multi_remove: decree = %" PRId64 ", error = %s",
-                   replica_name(),
-                   decree,
-                   status.ToString().c_str());
-            _physical_error = status.code();
-            resp.count = 0;
-        } else {
-            resp.count = update.sort_keys.size();
-        }
-
-        ::dsn::rpc_replier<::dsn::apps::multi_remove_response> replier(
-            dsn_msg_create_response(request));
-        if (!replier.is_empty()) {
-            _pfc_multi_remove_latency->set(dsn_now_ns() - start_time);
-            resp.error = status.code();
-            replier(resp);
-        }
-
-        _batch.Clear();
-        return _physical_error;
-    } else {
-        for (int i = 0; i < count; ++i) {
-            dsn_message_t request = requests[i];
-            dassert(request != nullptr, "");
-            ::dsn::message_ex *msg = (::dsn::message_ex *)request;
-            ::dsn::blob key;
-            if (msg->local_rpc_code == ::dsn::apps::RPC_RRDB_RRDB_PUT) {
-                _pfc_put_qps->increment();
-                ::dsn::apps::update_request update;
-                ::dsn::unmarshall(request, update);
-                key = update.key;
-
-                rocksdb::Slice slice_key(key.data(), key.length());
-                rocksdb::SliceParts skey(&slice_key, 1);
-
-                pegasus_generate_value(_value_schema_version,
-                                       update.expire_ts_seconds,
-                                       update.value,
-                                       _write_buf,
-                                       _write_slices);
-                rocksdb::SliceParts svalue(&_write_slices[0], _write_slices.size());
-
-                _batch.Put(skey, svalue);
-                _batch_repliers.emplace_back(dsn_msg_create_response(request));
-                _batch_perfcounters.push_back(_pfc_put_latency.get());
-            } else if (msg->local_rpc_code == ::dsn::apps::RPC_RRDB_RRDB_REMOVE) {
-                _pfc_remove_qps->increment();
-                ::dsn::unmarshall(request, key);
-
-                rocksdb::Slice skey(key.data(), key.length());
-                _batch.Delete(skey);
-                _batch_repliers.emplace_back(dsn_msg_create_response(request));
-                _batch_perfcounters.push_back(_pfc_remove_latency.get());
-            } else if (msg->local_rpc_code == ::dsn::apps::RPC_RRDB_RRDB_MULTI_PUT ||
-                       msg->local_rpc_code == ::dsn::apps::RPC_RRDB_RRDB_MULTI_REMOVE) {
-                dassert(false,
-                        "rpc code not allow batch: %s",
-                        ::dsn::task_code(msg->local_rpc_code).to_string());
-            } else {
-                dassert(false,
-                        "rpc code not handled: %s",
-                        ::dsn::task_code(msg->local_rpc_code).to_string());
-            }
-
-            if (msg->header->client.partition_hash != 0) {
-                uint64_t partition_hash = pegasus_key_hash(key);
-                dassert(msg->header->client.partition_hash == partition_hash,
-                        "inconsistent partition hash");
-                int thread_hash = dsn_gpid_to_thread_hash(_gpid);
-                dassert(msg->header->client.thread_hash == thread_hash, "inconsistent thread hash");
-            }
-
-            if (_verbose_log) {
-                ::dsn::blob hash_key, sort_key;
-                pegasus_restore_key(key, hash_key, sort_key);
-                ddebug("%s: rocksdb write: decree = %" PRId64
-                       ", code = %s, hash_key = \"%s\", sort_key = \"%s\"",
-                       replica_name(),
-                       decree,
-                       msg->local_rpc_code.to_string(),
-                       ::pegasus::utils::c_escape_string(hash_key).c_str(),
-                       ::pegasus::utils::c_escape_string(sort_key).c_str());
-            }
-        }
-    }
-
-    if (_batch.Count() == 0) {
-        // write fake data
-        rocksdb::Slice empty_key;
-        rocksdb::SliceParts skey(&empty_key, 1);
-
-        ::dsn::blob empty_value;
-        pegasus_generate_value(_value_schema_version, 0, empty_value, _write_buf, _write_slices);
-        rocksdb::SliceParts svalue(&_write_slices[0], _write_slices.size());
-
-        _batch.Put(skey, svalue);
-    }
-    _wt_opts.given_decree = decree;
-    auto status = _db->Write(_wt_opts, &_batch);
-    if (!status.ok()) {
-        derror("%s: rocksdb write failed: decree = %" PRId64 ", error = %s",
-               replica_name(),
-               decree,
-               status.ToString().c_str());
-        _physical_error = status.code();
-    }
-
-    ::dsn::apps::update_response resp;
-    resp.error = status.code();
-    resp.app_id = _gpid.get_app_id();
-    resp.partition_index = _gpid.get_partition_index();
-    resp.decree = decree;
-    resp.server = _primary_address;
-
-    dassert(_batch_repliers.size() == _batch_perfcounters.size(),
-            "%s: repliers's size(%u) vs perfcounters's size(%u) not match",
-            replica_name(),
-            _batch_repliers.size(),
-            _batch_perfcounters.size());
-    uint64_t latency = dsn_now_ns() - start_time;
-    for (unsigned int i = 0; i != _batch_repliers.size(); ++i) {
-        if (!_batch_repliers[i].is_empty()) {
-            _batch_perfcounters[i]->set(latency);
-            _batch_repliers[i](resp);
-        }
-    }
-
-    _batch.Clear();
-    _batch_repliers.clear();
-    _batch_perfcounters.clear();
-
-    return _physical_error;
-}
-
-void pegasus_server_impl::on_put(const ::dsn::apps::update_request &update,
-                                 ::dsn::rpc_replier<::dsn::apps::update_response> &reply)
-{
-    dassert(false, "not implemented");
-}
-
-void pegasus_server_impl::on_multi_put(const ::dsn::apps::multi_put_request &args,
-                                       ::dsn::rpc_replier<::dsn::apps::update_response> &reply)
-{
-    dassert(false, "not implemented");
-}
-
-void pegasus_server_impl::on_remove(const ::dsn::blob &key,
-                                    ::dsn::rpc_replier<::dsn::apps::update_response> &reply)
-{
-    dassert(false, "not implemented");
-}
-
-void pegasus_server_impl::on_multi_remove(
-    const ::dsn::apps::multi_remove_request &args,
-    ::dsn::rpc_replier<::dsn::apps::multi_remove_response> &reply)
-{
-    dassert(false, "not implemented");
+    return on_batched_write_requests_impl(requests, count, decree, timestamp);
 }
 
 void pegasus_server_impl::on_get(const ::dsn::blob &key,
@@ -699,12 +402,11 @@ void pegasus_server_impl::on_get(const ::dsn::blob &key,
     resp.server = _primary_address;
 
     rocksdb::Slice skey(key.data(), key.length());
-    std::unique_ptr<std::string> value(new std::string());
-    rocksdb::Status status = _db->Get(_rd_opts, skey, value.get());
+    std::string value;
+    rocksdb::Status status = _db->Get(_rd_opts, skey, &value);
 
     if (status.ok()) {
-        uint32_t expire_ts = pegasus_extract_expire_ts(_value_schema_version, *value);
-        if (expire_ts > 0 && expire_ts <= ::pegasus::utils::epoch_now()) {
+        if (check_if_record_expired(utils::epoch_now(), value)) {
             _pfc_recent_expire_count->increment();
             if (_verbose_log) {
                 derror("%s: rocksdb data expired for get", replica_name());
@@ -920,13 +622,12 @@ void pegasus_server_impl::on_multi_get(const ::dsn::apps::multi_get_request &req
             ::dsn::blob raw_key;
             pegasus_generate_key(raw_key, request.hash_key, sort_key);
             rocksdb::Slice skey(raw_key.data(), raw_key.length());
-            std::unique_ptr<std::string> value(new std::string());
-            status = _db->Get(_rd_opts, skey, value.get());
+            std::string value;
+            status = _db->Get(_rd_opts, skey, &value);
 
             // check ttl
             if (status.ok()) {
-                uint32_t expire_ts = pegasus_extract_expire_ts(_value_schema_version, *value);
-                if (expire_ts > 0 && expire_ts <= epoch_now) {
+                if (check_if_record_expired(epoch_now, value)) {
                     expire_count++;
                     if (_verbose_log) {
                         derror("%s: rocksdb data expired for multi_get", replica_name());
@@ -1015,8 +716,7 @@ void pegasus_server_impl::on_sortkey_count(const ::dsn::blob &hash_key,
     uint32_t epoch_now = ::pegasus::utils::epoch_now();
     uint64_t expire_count = 0;
     while (it->Valid()) {
-        uint32_t expire_ts = pegasus_extract_expire_ts(_value_schema_version, it->value());
-        if (expire_ts > 0 && expire_ts <= epoch_now) {
+        if (check_if_record_expired(epoch_now, it->value())) {
             expire_count++;
             if (_verbose_log) {
                 derror("%s: rocksdb data expired for sortkey_count", replica_name());
@@ -1066,8 +766,7 @@ void pegasus_server_impl::on_ttl(const ::dsn::blob &key,
     uint32_t expire_ts;
     uint32_t now_ts = ::pegasus::utils::epoch_now();
     if (status.ok()) {
-        expire_ts = pegasus_extract_expire_ts(_value_schema_version, value);
-        if (expire_ts > 0 && expire_ts <= now_ts) {
+        if (check_if_record_expired(now_ts, value)) {
             _pfc_recent_expire_count->increment();
             if (_verbose_log) {
                 derror("%s: rocksdb data expired for ttl", replica_name());
@@ -1509,18 +1208,10 @@ DEFINE_TASK_CODE(UPDATING_ROCKSDB_SSTSIZE, TASK_PRIORITY_COMMON, THREAD_POOL_REP
                    ci);
             auto err = async_checkpoint(false);
             if (err != ::dsn::ERR_OK) {
-                dwarn("%s: create checkpoint failed, error = %s, retry again",
-                      replica_name(),
-                      err.to_string());
-                err = async_checkpoint(false);
-                if (err != ::dsn::ERR_OK) {
-                    derror("%s: create checkpoint failed, error = %s",
-                           replica_name(),
-                           err.to_string());
-                    delete _db;
-                    _db = nullptr;
-                    return err;
-                }
+                derror("%s: create checkpoint failed, error = %s", replica_name(), err.to_string());
+                delete _db;
+                _db = nullptr;
+                return err;
             }
             dassert(ci == last_durable_decree(),
                     "last durable decree mismatch after checkpoint: %" PRId64 " vs %" PRId64,
@@ -1546,6 +1237,9 @@ DEFINE_TASK_CODE(UPDATING_ROCKSDB_SSTSIZE, TASK_PRIORITY_COMMON, THREAD_POOL_REP
             0,
             std::chrono::seconds(30));
 
+        // initialize write service after server being initialized.
+        _write_svc = dsn::make_unique<pegasus_write_service>(this);
+
         return ::dsn::ERR_OK;
     } else {
         derror("%s: open app failed, error = %s", replica_name(), status.ToString().c_str());
@@ -1565,10 +1259,8 @@ DEFINE_TASK_CODE(UPDATING_ROCKSDB_SSTSIZE, TASK_PRIORITY_COMMON, THREAD_POOL_REP
         rocksdb::FlushOptions options;
         options.wait = true;
         auto status = _db->Flush(options);
-        if (!status.ok() && !status.IsNoNeedOperate()) {
-            derror("%s: flush memtable on close failed: %s",
-                   replica_name(),
-                   status.ToString().c_str());
+        if (!status.ok()) {
+            derror("%s: flush memtable failed: %s", replica_name(), status.ToString().c_str());
         }
     }
 
@@ -2063,8 +1755,7 @@ int pegasus_server_impl::append_key_value_for_scan(
     uint32_t epoch_now,
     bool no_value)
 {
-    uint32_t expire_ts = pegasus_extract_expire_ts(_value_schema_version, value);
-    if (expire_ts > 0 && expire_ts <= epoch_now) {
+    if (check_if_record_expired(epoch_now, value)) {
         if (_verbose_log) {
             derror("%s: rocksdb data expired for scan", replica_name());
         }
@@ -2100,7 +1791,7 @@ int pegasus_server_impl::append_key_value_for_scan(
 
     // extract value
     if (!no_value) {
-        std::unique_ptr<std::string> value_buf(new std::string(value.data(), value.size()));
+        std::string value_buf(value.data(), value.size());
         pegasus_extract_user_data(_value_schema_version, std::move(value_buf), kv.value);
     }
 
@@ -2117,8 +1808,7 @@ int pegasus_server_impl::append_key_value_for_multi_get(
     uint32_t epoch_now,
     bool no_value)
 {
-    uint32_t expire_ts = pegasus_extract_expire_ts(_value_schema_version, value);
-    if (expire_ts > 0 && expire_ts <= epoch_now) {
+    if (check_if_record_expired(epoch_now, value)) {
         if (_verbose_log) {
             derror("%s: rocksdb data expired for multi get", replica_name());
         }
@@ -2144,7 +1834,7 @@ int pegasus_server_impl::append_key_value_for_multi_get(
 
     // extract value
     if (!no_value) {
-        std::unique_ptr<std::string> value_buf(new std::string(value.data(), value.size()));
+        std::string value_buf(value.data(), value.size());
         pegasus_extract_user_data(_value_schema_version, std::move(value_buf), kv.value);
     }
 
@@ -2251,5 +1941,159 @@ std::pair<std::string, bool> pegasus_server_impl::get_restore_dir_from_env(int a
     res.first = ::dsn::utils::filesystem::path_combine(parent_dir, os.str());
     return res;
 }
+
+int pegasus_server_impl::on_batched_write_requests_impl(dsn_message_t *requests,
+                                                        int count,
+                                                        int64_t decree,
+                                                        uint64_t timestamp)
+{
+    _physical_error = 0;
+
+    _put_ctx = db_write_context::put(decree, timestamp, _cluster_id);
+    _remove_ctx = db_write_context::remove(decree, timestamp, _cluster_id);
+
+    if (count == 0) {
+        // TODO(wutao1): why this happens?
+        return _write_svc->empty_put(_put_ctx);
+    }
+
+    dsn::task_code rpc_code(dsn_msg_task_code(requests[0]));
+    if (rpc_code == dsn::apps::RPC_RRDB_RRDB_MULTI_PUT) {
+        dassert(count == 1, "");
+        auto rpc = multi_put_rpc::auto_reply(requests[0]);
+        return on_multi_put(rpc);
+    }
+    if (rpc_code == dsn::apps::RPC_RRDB_RRDB_MULTI_REMOVE) {
+        dassert(count == 1, "");
+        auto rpc = multi_remove_rpc::auto_reply(requests[0]);
+        return on_multi_remove(rpc);
+    }
+    if (rpc_code == dsn::apps::RPC_RRDB_RRDB_DUPLICATE) {
+        dassert(count == 1, "");
+        auto rpc = duplicate_rpc::auto_reply(requests[0]);
+        return on_duplicate(rpc);
+    }
+
+    return on_batched_writes(requests, count, decree);
 }
-} // namespace
+
+int pegasus_server_impl::on_duplicate_impl(bool batched, dsn::apps::duplicate_request &request)
+{
+    dsn::task_code rpc_code = request.task_code;
+    dsn_message_t write =
+        dsn::move_blob_to_received_message(rpc_code, std::move(request.raw_message));
+
+    auto remote_timetag = static_cast<uint64_t>(request.timetag);
+    dassert(remote_timetag > 0, "timetag field is not set in duplicate_request");
+    _remove_ctx.remote_timetag = remote_timetag;
+    _put_ctx.remote_timetag = remote_timetag;
+
+    if (batched) {
+        if (rpc_code == dsn::apps::RPC_RRDB_RRDB_PUT) {
+            put_rpc rpc(write);
+            on_single_put_in_batch(rpc);
+            return 0;
+        }
+        if (rpc_code == dsn::apps::RPC_RRDB_RRDB_REMOVE) {
+            remove_rpc rpc(write);
+            on_single_remove_in_batch(rpc);
+            return 0;
+        }
+    } else {
+        if (rpc_code == dsn::apps::RPC_RRDB_RRDB_MULTI_PUT) {
+            multi_put_rpc rpc(write);
+            return on_multi_put(rpc);
+        }
+        if (rpc_code == dsn::apps::RPC_RRDB_RRDB_MULTI_REMOVE) {
+            multi_remove_rpc rpc(write);
+            return on_multi_remove(rpc);
+        }
+    }
+
+    dfatal("%s: this rpc(%s) is not expected to be loaded in duplicate_request",
+           replica_name(),
+           rpc_code.to_string());
+    __builtin_unreachable();
+}
+
+int pegasus_server_impl::on_batched_writes(dsn_message_t *requests, int count, int64_t decree)
+{
+    dassert(count > 0, "");
+
+    dsn::apps::update_response resp;
+
+    {
+        _write_svc->batch_prepare();
+
+        for (int i = 0; i < count; ++i) {
+            dassert(requests[i] != nullptr, "");
+
+            dsn::task_code rpc_code(dsn_msg_task_code(requests[i]));
+            if (rpc_code == dsn::apps::RPC_RRDB_RRDB_PUT) {
+                auto rpc = put_rpc::auto_reply(requests[i]);
+                on_single_put_in_batch(rpc);
+                _put_rpc_batch.emplace_back(std::move(rpc));
+            } else if (rpc_code == dsn::apps::RPC_RRDB_RRDB_REMOVE) {
+                auto rpc = remove_rpc::auto_reply(requests[i]);
+                on_single_remove_in_batch(rpc);
+                _remove_rpc_batch.emplace_back(std::move(rpc));
+            } else if (rpc_code == dsn::apps::RPC_RRDB_RRDB_BATCHED_DUPLICATE) {
+                auto rpc = duplicate_rpc::auto_reply(requests[i]);
+                on_single_duplicate_in_batch(rpc);
+                _batched_duplicate_rpc_batch.emplace_back(std::move(rpc));
+            } else {
+                if (rpc_code == dsn::apps::RPC_RRDB_RRDB_MULTI_PUT ||
+                    rpc_code == dsn::apps::RPC_RRDB_RRDB_MULTI_REMOVE) {
+                    dfatal("rpc code not allow batch: %s", rpc_code.to_string());
+                } else {
+                    dfatal("rpc code not handled: %s", rpc_code.to_string());
+                }
+            }
+        }
+
+        _physical_error = _write_svc->batch_commit(decree, resp);
+    }
+
+    for (put_rpc &rpc : _put_rpc_batch) {
+        rpc.response() = resp;
+    }
+    for (remove_rpc &rpc : _remove_rpc_batch) {
+        rpc.response() = resp;
+    }
+    for (duplicate_rpc &rpc : _batched_duplicate_rpc_batch) {
+        rpc.response().error = resp.error;
+    }
+
+    _put_rpc_batch.clear();
+    _remove_rpc_batch.clear();
+    _batched_duplicate_rpc_batch.clear();
+
+    return _physical_error;
+}
+
+void pegasus_server_impl::request_key_check(int64_t decree, dsn_message_t m, const dsn::blob &key)
+{
+    auto msg = (dsn::message_ex *)m;
+    if (msg->header->client.partition_hash != 0) {
+        uint64_t partition_hash = pegasus_key_hash(key);
+        dassert(msg->header->client.partition_hash == partition_hash,
+                "inconsistent partition hash");
+        int thread_hash = dsn_gpid_to_thread_hash(_gpid);
+        dassert(msg->header->client.thread_hash == thread_hash, "inconsistent thread hash");
+    }
+
+    if (_verbose_log) {
+        ::dsn::blob hash_key, sort_key;
+        pegasus_restore_key(key, hash_key, sort_key);
+
+        ddebug_rocksdb("write",
+                       "decree={}, code={}, hash_key={}, sort_key={}",
+                       decree,
+                       msg->local_rpc_code.to_string(),
+                       utils::c_escape_string(hash_key),
+                       utils::c_escape_string(sort_key));
+    }
+}
+
+} // namespace server
+} // namespace pegasus

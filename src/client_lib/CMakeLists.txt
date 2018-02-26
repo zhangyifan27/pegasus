@@ -6,7 +6,8 @@ add_definitions(-DDSN_ENABLE_THRIFT_RPC -DDSN_USE_THRIFT_SERIALIZATION -fPIC)
 
 # include_dir DSN_ROOT/include & DSN_THIRDPARTY_ROOT/include is added by the dsn.cmake framework
 include_directories(${CMAKE_SOURCE_DIR}/include)
-include_directories(${CMAKE_SOURCE_DIR}/base)
+include_directories(${CMAKE_SOURCE_DIR})
+
 add_library(pegasus_client_impl_objects OBJECT ${source_files})
 add_library(pegasus_client_impl $<TARGET_OBJECTS:pegasus_client_impl_objects>)
 

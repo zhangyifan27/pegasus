@@ -119,8 +119,7 @@ inline bool query_app(command_executor *e, shell_context *sc, arguments args)
     if (err == ::dsn::ERR_OK)
         std::cout << "list app " << app_name << " succeed" << std::endl;
     else
-        std::cout << "list app " << app_name << " failed, error=" << err.to_string()
-                  << std::endl;
+        std::cout << "list app " << app_name << " failed, error=" << err.to_string() << std::endl;
     return true;
 }
 
@@ -277,8 +276,7 @@ inline bool create_app(command_executor *e, shell_context *sc, arguments args)
     if (err == ::dsn::ERR_OK)
         std::cout << "create app " << app_name << " succeed" << std::endl;
     else
-        std::cout << "create app " << app_name << " failed, error=" << err.to_string()
-                  << std::endl;
+        std::cout << "create app " << app_name << " failed, error=" << err.to_string() << std::endl;
     return true;
 }
 
@@ -317,8 +315,7 @@ inline bool drop_app(command_executor *e, shell_context *sc, arguments args)
     if (err == ::dsn::ERR_OK)
         std::cout << "drop app " << app_name << " succeed" << std::endl;
     else
-        std::cout << "drop app " << app_name << " failed, error=" << err.to_string()
-                  << std::endl;
+        std::cout << "drop app " << app_name << " failed, error=" << err.to_string() << std::endl;
     return true;
 }
 
@@ -2391,8 +2388,8 @@ inline bool local_get(command_executor *e, shell_context *sc, arguments args)
         fprintf(stderr, "ERROR: get failed: %s\n", status.ToString().c_str());
     } else {
         uint32_t expire_ts = pegasus::pegasus_extract_expire_ts(0, value);
-        std::string user_data;
-        pegasus::pegasus_extract_user_data(0, value, user_data);
+        dsn::blob user_data;
+        pegasus::pegasus_extract_user_data(0, std::move(value), user_data);
         fprintf(stderr,
                 "%u : \"%s\"\n",
                 expire_ts,

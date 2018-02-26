@@ -16,6 +16,7 @@ set(MY_PROJ_LIBS
     pegasus_client_static
     dsn.replication.ddlclient
     dsn.replication.clientlib
+    fmt
     )
 
 set(MY_BINPLACES "${CMAKE_CURRENT_SOURCE_DIR}/config.ini")

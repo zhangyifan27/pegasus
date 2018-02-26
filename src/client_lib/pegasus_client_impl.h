@@ -7,8 +7,9 @@
 #include <string>
 #include <pegasus/client.h>
 #include <rrdb/rrdb.client.h>
-#include <pegasus_key_schema.h>
-#include <pegasus_utils.h>
+
+#include "base/pegasus_key_schema.h"
+#include "base/pegasus_utils.h"
 
 namespace pegasus {
 namespace client {
@@ -166,6 +167,16 @@ public:
                                  async_get_unordered_scanners_callback_t &&callback) override;
 
     virtual const char *get_error_string(int error_code) const override;
+
+    /// \internal
+    /// This is an internal function for duplication.
+    /// \see pegasus::server::pegasus_duplication_backlog_handler
+    void async_duplicate(dsn::apps::duplicate_rpc rpc,
+                         std::function<void(::dsn::error_code)> &&callback);
+
+    /// \internal
+    /// Await until all tasks complete.
+    void wait_all_tasks() { dsn_task_tracker_wait_all(_client->tracker()); }
 
     static void init_error();
 

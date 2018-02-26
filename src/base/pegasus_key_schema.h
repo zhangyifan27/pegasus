@@ -9,8 +9,8 @@
 #include <dsn/utility/ports.h>
 #include <dsn/utility/utils.h>
 #include <dsn/utility/blob.h>
-#include <dsn/utility/utils.h>
 #include <dsn/utility/crc.h>
+#include <dsn/c/api_utilities.h>
 
 namespace pegasus {
 
@@ -147,6 +147,12 @@ inline uint64_t pegasus_key_hash(const ::dsn::blob &key)
         // hash_key_len == 0, compute hash from sort_key
         return dsn::utils::crc64_calc(key.buffer_ptr() + 2, key.length() - 2, 0);
     }
+}
+
+/// Calculate hash value from hash key.
+inline uint64_t pegasus_hash_key_hash(const ::dsn::blob &hash_key)
+{
+    return dsn::utils::crc64_calc(hash_key.data(), hash_key.length(), 0);
 }
 
 } // namespace

@@ -6,9 +6,11 @@
 #include <setjmp.h>
 #include <signal.h>
 #include <algorithm>
+
 #include "args.h"
 #include "command_executor.h"
 #include "commands.h"
+#include "duplication_commands.h"
 
 std::string s_last_history;
 const int max_params_count = 10000;
@@ -31,18 +33,21 @@ command_executor commands[] = {
         "version", "get the shell version", "", version,
     },
     {
-        "cluster_info", "get the informations for the cluster", "", query_cluster_info,
+        "cluster_info",
+        "get the informations for the cluster",
+        "[-r|--resolve_ip]",
+        query_cluster_info,
     },
     {
         "app",
         "get the partition information for some specific app",
-        "<app_name> [-d|--detailed] [-o|--output <out_file>]",
+        "<app_name> [-d|--detailed] [-o|--output <out_file>] [-r|--resolve_ip]",
         query_app,
     },
     {
         "app_disk",
         "get the disk usage information for some specific app",
-        "<app_name> [-d|--detailed] [-o|--output <out_file>]",
+        "<app_name> [-d|--detailed] [-o|--output <out_file>] [-r|--resolve_ip]",
         app_disk,
     },
     {
@@ -56,7 +61,7 @@ command_executor commands[] = {
     {
         "nodes",
         "get the node status for this cluster",
-        "[-d|--detailed] [-s|--status <all|alive|unalive>] [-o|--output "
+        "[-d|--detailed] [-s|--status <all|alive|unalive>] [-r|--resolve_ip] [-o|--output "
         "FILE_PATH]",
         ls_nodes,
     },
@@ -233,20 +238,20 @@ command_executor commands[] = {
     {
         "remote_command",
         "send remote command to servers",
-        "[-t all|meta-server|replica-server] [-l ip:port,ip:port,...,ip:port] "
+        "[-t all|meta-server|replica-server] [-l ip:port,ip:port,...,ip:port] [-r|--resolve_ip]"
         "command [arguments...]",
         remote_command,
     },
     {
         "server_info",
         "get info of servers",
-        "[-t all|meta-server|replica-server] [-l ip:port,ip:port,...,ip:port]",
+        "[-t all|meta-server|replica-server] [-l ip:port,ip:port,...,ip:port] [-r|--resolve_ip]",
         server_info,
     },
     {
         "server_stat",
         "get stat of servers",
-        "[-t all|meta-server|replica-server] [-l ip:port,ip:port,...,ip:port]",
+        "[-t all|meta-server|replica-server] [-l ip:port,ip:port,...,ip:port] [-r|--resolve_ip]",
         server_stat,
     },
     {
@@ -332,6 +337,11 @@ command_executor commands[] = {
         "<restore_app_id 1> [-d| --detailed]",
         query_restore_status,
     },
+    {"add_dup", "add duplication for app", "<app_name> <remote_cluster_address>", add_dup},
+    {"query_dup", "query duplications info of app", "<app_name>", query_dup},
+    {"remove_dup", "remove duplication of app", "<app_name> <dup_id>", remove_dup},
+    {"start_dup", "start duplication of app", "<app_name> <dup_id>", start_dup},
+    {"pause_dup", "pause duplicaton of app", "<app_name> <dup_id>", pause_dup},
     {
         "exit", "exit shell", "", exit_shell,
     },

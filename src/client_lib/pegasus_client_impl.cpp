@@ -2,6 +2,9 @@
 // This source code is licensed under the Apache License Version 2.0, which
 // can be found in the LICENSE file in the root directory of this source tree.
 
+#include "pegasus_client_impl.h"
+#include "base/pegasus_utils.h"
+
 #include <cctype>
 #include <algorithm>
 #include <string>
@@ -12,8 +15,6 @@
 #include <rrdb/rrdb.code.definition.h>
 #include <rrdb/rrdb.types.h>
 #include <pegasus/error.h>
-#include <pegasus_utils.h>
-#include "pegasus_client_impl.h"
 
 using namespace ::dsn;
 
@@ -991,6 +992,12 @@ const char *pegasus_client_impl::get_error_string(int error_code) const
 /*static*/ int pegasus_client_impl::get_rocksdb_server_error(int rocskdb_error)
 {
     return (rocskdb_error == 0) ? 0 : ROCSKDB_ERROR_START - rocskdb_error;
+}
+
+void pegasus_client_impl::async_duplicate(dsn::apps::duplicate_rpc rpc,
+                                          std::function<void(::dsn::error_code)> &&callback)
+{
+    _client->duplicate(rpc, std::move(callback));
 }
 }
 } // namespace
