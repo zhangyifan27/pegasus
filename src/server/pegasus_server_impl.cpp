@@ -1413,6 +1413,9 @@ DEFINE_TASK_CODE(UPDATING_ROCKSDB_SSTSIZE, TASK_PRIORITY_COMMON, THREAD_POOL_REP
     opts.compaction_filter = &_key_ttl_compaction_filter;
     opts.default_value_schema_version = PEGASUS_VALUE_SCHEMA_MAX_VERSION;
 
+    if (_gpid.get_app_id() == 8)
+        opts.compression = rocksdb::kNoCompression;
+
     auto path = ::dsn::utils::filesystem::path_combine(data_dir(), "rdb");
 
     //
