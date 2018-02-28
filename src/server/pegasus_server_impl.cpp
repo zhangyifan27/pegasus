@@ -648,7 +648,7 @@ int pegasus_server_impl::on_batched_write_requests(int64_t decree,
             _batch_perfcounters.size());
     uint64_t latency = dsn_now_ns() - start_time;
     if (latency >= 10000000) {
-        ddebug("%s: latency_stat: %" PRIu64 "", replica_name(), latency);
+        ddebug("%s: latency_stat: %" PRIu64 "", replica_name(), latency / 1000);
     }
     for (unsigned int i = 0; i != _batch_repliers.size(); ++i) {
         if (!_batch_repliers[i].is_empty()) {
