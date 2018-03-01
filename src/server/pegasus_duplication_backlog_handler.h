@@ -55,7 +55,7 @@ public:
     }
 };
 
-extern uint64_t get_hash_from_request(dsn::task_code rpc_code, const dsn::blob &data);
+extern uint64_t get_hash_from_request(dsn::task_code rpc_code, const dsn::blob &request_data);
 
 } // namespace server
 } // namespace pegasus

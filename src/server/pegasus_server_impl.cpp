@@ -47,7 +47,6 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
       _is_open(false),
       _value_schema_version(0),
       _last_durable_decree(0),
-      _physical_error(0),
       _is_checkpointing(false)
 {
     _primary_address = dsn::rpc_address(dsn_primary_address()).to_string();
@@ -1947,41 +1946,40 @@ int pegasus_server_impl::on_batched_write_requests_impl(dsn_message_t *requests,
                                                         int64_t decree,
                                                         uint64_t timestamp)
 {
-    _physical_error = 0;
-
     _put_ctx = db_write_context::put(decree, timestamp, _cluster_id);
     _remove_ctx = db_write_context::remove(decree, timestamp, _cluster_id);
-
-    if (count == 0) {
-        // TODO(wutao1): why this happens?
-        return _write_svc->empty_put(_put_ctx);
-    }
+    dassert(count != 0, "");
 
     dsn::task_code rpc_code(dsn_msg_task_code(requests[0]));
     if (rpc_code == dsn::apps::RPC_RRDB_RRDB_MULTI_PUT) {
         dassert(count == 1, "");
         auto rpc = multi_put_rpc::auto_reply(requests[0]);
-        return on_multi_put(rpc);
+        on_multi_put(rpc);
+        return rpc.response().error;
     }
     if (rpc_code == dsn::apps::RPC_RRDB_RRDB_MULTI_REMOVE) {
         dassert(count == 1, "");
         auto rpc = multi_remove_rpc::auto_reply(requests[0]);
-        return on_multi_remove(rpc);
+        on_multi_remove(rpc);
+        return rpc.response().error;
     }
     if (rpc_code == dsn::apps::RPC_RRDB_RRDB_DUPLICATE) {
         dassert(count == 1, "");
         auto rpc = duplicate_rpc::auto_reply(requests[0]);
-        return on_duplicate(rpc);
+        on_duplicate(rpc);
+        return rpc.response().error;
     }
 
     return on_batched_writes(requests, count, decree);
 }
 
-int pegasus_server_impl::on_duplicate_impl(bool batched, dsn::apps::duplicate_request &request)
+void pegasus_server_impl::on_duplicate_impl(bool batched,
+                                            const dsn::apps::duplicate_request &request,
+                                            dsn::apps::duplicate_response &resp)
 {
     dsn::task_code rpc_code = request.task_code;
     dsn_message_t write =
-        dsn::move_blob_to_received_message(rpc_code, std::move(request.raw_message));
+        dsn::move_blob_to_received_message(rpc_code, dsn::blob(request.raw_message));
 
     auto remote_timetag = static_cast<uint64_t>(request.timetag);
     dassert(remote_timetag > 0, "timetag field is not set in duplicate_request");
@@ -1992,36 +1990,42 @@ int pegasus_server_impl::on_duplicate_impl(bool batched, dsn::apps::duplicate_re
         if (rpc_code == dsn::apps::RPC_RRDB_RRDB_PUT) {
             put_rpc rpc(write);
             on_single_put_in_batch(rpc);
-            return 0;
+            resp.error = rpc.response().error;
+            _put_rpc_batch.emplace_back(std::move(rpc));
+            return;
         }
         if (rpc_code == dsn::apps::RPC_RRDB_RRDB_REMOVE) {
             remove_rpc rpc(write);
             on_single_remove_in_batch(rpc);
-            return 0;
+            resp.error = rpc.response().error;
+            _remove_rpc_batch.emplace_back(std::move(rpc));
+            return;
         }
     } else {
         if (rpc_code == dsn::apps::RPC_RRDB_RRDB_MULTI_PUT) {
             multi_put_rpc rpc(write);
-            return on_multi_put(rpc);
+            on_multi_put(rpc);
+            resp.error = rpc.response().error;
+            return;
         }
         if (rpc_code == dsn::apps::RPC_RRDB_RRDB_MULTI_REMOVE) {
             multi_remove_rpc rpc(write);
-            return on_multi_remove(rpc);
+            on_multi_remove(rpc);
+            resp.error = rpc.response().error;
+            return;
         }
     }
 
-    dfatal("%s: this rpc(%s) is not expected to be loaded in duplicate_request",
-           replica_name(),
-           rpc_code.to_string());
+    dfatal_f("{}: this rpc({}) is not expected to be loaded in duplicate_request (is batched: {})",
+             replica_name(),
+             rpc_code.to_string(),
+             batched);
     __builtin_unreachable();
 }
 
 int pegasus_server_impl::on_batched_writes(dsn_message_t *requests, int count, int64_t decree)
 {
-    dassert(count > 0, "");
-
-    dsn::apps::update_response resp;
-
+    int err;
     {
         _write_svc->batch_prepare();
 
@@ -2051,24 +2055,13 @@ int pegasus_server_impl::on_batched_writes(dsn_message_t *requests, int count, i
             }
         }
 
-        _physical_error = _write_svc->batch_commit(decree, resp);
-    }
-
-    for (put_rpc &rpc : _put_rpc_batch) {
-        rpc.response() = resp;
-    }
-    for (remove_rpc &rpc : _remove_rpc_batch) {
-        rpc.response() = resp;
-    }
-    for (duplicate_rpc &rpc : _batched_duplicate_rpc_batch) {
-        rpc.response().error = resp.error;
+        err = _write_svc->batch_commit(decree);
     }
 
     _put_rpc_batch.clear();
     _remove_rpc_batch.clear();
     _batched_duplicate_rpc_batch.clear();
-
-    return _physical_error;
+    return err;
 }
 
 void pegasus_server_impl::request_key_check(int64_t decree, dsn_message_t m, const dsn::blob &key)

@@ -157,42 +157,43 @@ public:
                                        int64_t decree,
                                        uint64_t timestamp);
 
-    int on_multi_put(multi_put_rpc &rpc)
+    void on_multi_put(multi_put_rpc &rpc)
     {
-        return _write_svc->multi_put(_put_ctx, rpc.request(), rpc.response());
+        _write_svc->multi_put(_put_ctx, rpc.request(), rpc.response());
     }
 
-    int on_multi_remove(multi_remove_rpc &rpc)
+    void on_multi_remove(multi_remove_rpc &rpc)
     {
-        return _write_svc->multi_remove(_remove_ctx, rpc.request(), rpc.response());
+        _write_svc->multi_remove(_remove_ctx, rpc.request(), rpc.response());
     }
 
-    int on_duplicate(duplicate_rpc &rpc)
+    void on_duplicate(duplicate_rpc &rpc)
     {
-        rpc.response().error = on_duplicate_impl(false, *rpc.mutable_request());
-        return rpc.response().error;
+        on_duplicate_impl(false, rpc.request(), rpc.response());
     }
 
-    int on_duplicate_impl(bool batched, dsn::apps::duplicate_request &request);
+    void on_duplicate_impl(bool batched,
+                           const dsn::apps::duplicate_request &request,
+                           dsn::apps::duplicate_response &resp);
 
     /// Delay replying for the batched requests until all of them completes.
     int on_batched_writes(dsn_message_t *requests, int count, int64_t decree);
 
-    void on_single_put_in_batch(const put_rpc &rpc)
+    void on_single_put_in_batch(put_rpc &rpc)
     {
-        _write_svc->batch_put(_put_ctx, rpc.request());
+        _write_svc->batch_put(_put_ctx, rpc.request(), rpc.response());
         request_key_check(_put_ctx.decree, rpc.dsn_request(), rpc.request().key);
     }
 
-    void on_single_remove_in_batch(const remove_rpc &rpc)
+    void on_single_remove_in_batch(remove_rpc &rpc)
     {
-        _write_svc->batch_remove(_remove_ctx, rpc.request());
+        _write_svc->batch_remove(_remove_ctx, rpc.request(), rpc.response());
         request_key_check(_remove_ctx.decree, rpc.dsn_request(), rpc.request());
     }
 
-    void on_single_duplicate_in_batch(const duplicate_rpc &rpc)
+    void on_single_duplicate_in_batch(duplicate_rpc &rpc)
     {
-        on_duplicate_impl(true, *rpc.mutable_request());
+        on_duplicate_impl(true, rpc.request(), rpc.response());
     }
 
     void request_key_check(int64_t decree, dsn_message_t m, const dsn::blob &key);
@@ -277,8 +278,6 @@ private:
     std::vector<duplicate_rpc> _batched_duplicate_rpc_batch;
     db_write_context _put_ctx;
     db_write_context _remove_ctx;
-
-    int _physical_error;
 
     uint32_t _checkpoint_reserve_min_count;
     uint32_t _checkpoint_reserve_time_seconds;

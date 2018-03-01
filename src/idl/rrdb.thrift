@@ -142,13 +142,15 @@ struct scan_response
     6:string        server;
 }
 
-struct duplicate_request {
+struct duplicate_request
+{
     1:i64                     timetag;
     2:dsn.task_code           task_code;
     3:dsn.blob                raw_message;
 }
 
-struct duplicate_response {
+struct duplicate_response
+{
     1:i32           error;
 }
 

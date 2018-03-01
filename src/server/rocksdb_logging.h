@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <dsn/dist/replication/fmt_logging.h>
+#include <dsn/dist/replication/fmt_utils.h>
 
 /// This file contains utilities for logging about the operation on rocksdb.
 /// It should only be used in pegasus_sever_impl.

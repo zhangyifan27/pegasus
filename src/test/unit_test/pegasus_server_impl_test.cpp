@@ -29,6 +29,7 @@ public:
 
         dsn::apps::duplicate_request duplicate;
         duplicate.timetag = 1000;
+        dsn::apps::duplicate_response resp;
 
         {
             dsn::apps::multi_put_request mput;
@@ -42,7 +43,8 @@ public:
             duplicate.task_code = dsn::apps::RPC_RRDB_RRDB_MULTI_PUT;
             duplicate.raw_message = dsn::move_message_to_blob(mput_msg);
 
-            ASSERT_EQ(_server->on_duplicate_impl(false, duplicate), 0);
+            _server->on_duplicate_impl(false, duplicate, resp);
+            ASSERT_EQ(resp.error, 0);
         }
 
         {
@@ -56,7 +58,8 @@ public:
             duplicate.task_code = dsn::apps::RPC_RRDB_RRDB_MULTI_REMOVE;
             duplicate.raw_message = dsn::move_message_to_blob(mremove_msg);
 
-            ASSERT_EQ(_server->on_duplicate_impl(false, duplicate), 0);
+            _server->on_duplicate_impl(false, duplicate, resp);
+            ASSERT_EQ(resp.error, 0);
         }
     }
 
@@ -75,6 +78,7 @@ public:
         {
             dsn::apps::duplicate_request duplicate;
             duplicate.timetag = 1000;
+            dsn::apps::duplicate_response resp;
 
             for (int i = 0; i < kv_num; i++) {
                 dsn::apps::update_request request;
@@ -84,11 +88,10 @@ public:
                 duplicate.raw_message =
                     dsn::move_message_to_blob(pegasus::create_put_request(request));
                 duplicate.task_code = dsn::apps::RPC_RRDB_RRDB_PUT;
-                ASSERT_EQ(_server->on_duplicate_impl(true, duplicate), 0);
+                _server->on_duplicate_impl(true, duplicate, resp);
+                ASSERT_EQ(resp.error, 0);
             }
         }
-
-        // TODO(wutao1): add unit test for remove.
     }
 };
 
