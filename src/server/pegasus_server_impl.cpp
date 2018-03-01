@@ -110,15 +110,15 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
     _db_opts.level0_slowdown_writes_trigger = (int)dsn_config_get_value_uint64(
         "pegasus.server",
         "rocksdb_level0_slowdown_writes_trigger",
-        20,
-        "rocksdb options.level0_slowdown_writes_trigger, default 20");
+        10,
+        "rocksdb options.level0_slowdown_writes_trigger, default 10");
 
     // rocksdb default: 24
     _db_opts.level0_stop_writes_trigger =
         (int)dsn_config_get_value_uint64("pegasus.server",
                                          "rocksdb_level0_stop_writes_trigger",
-                                         24,
-                                         "rocksdb options.level0_stop_writes_trigger, default 24");
+                                         30,
+                                         "rocksdb options.level0_stop_writes_trigger, default 30");
 
     // disable table block cache, default: false
     if ((bool)dsn_config_get_value_bool(
@@ -648,7 +648,8 @@ int pegasus_server_impl::on_batched_write_requests(int64_t decree,
             _batch_perfcounters.size());
     uint64_t latency = dsn_now_ns() - start_time;
     if (latency >= 10000000) {
-        ddebug("%s: latency_stat: %" PRIu64 "", replica_name(), latency / 1000);
+        ddebug("%s: latency_stat: %" PRIu64 " { %" PRId64 " }",
+               replica_name(), latency / 1000, decree);
     }
     for (unsigned int i = 0; i != _batch_repliers.size(); ++i) {
         if (!_batch_repliers[i].is_empty()) {
