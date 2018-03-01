@@ -17,7 +17,7 @@ TEST(value_schema, generate_and_extract_timetag)
     ASSERT_EQ(cluster_id, extract_cluster_id_from_timetag(timetag));
 }
 
-TEST(value_schema, generate_and_extract_value_v1)
+TEST(value_schema, generate_and_extract_from_value_v1)
 {
     uint32_t expire_ts = 1000;
     uint64_t timetag = generate_timetag(10000, 1, false);
@@ -36,7 +36,7 @@ TEST(value_schema, generate_and_extract_value_v1)
 
 TEST(value_schema, generate_and_extract_user_value)
 {
-    for (int version = 0; version <= 0; version++) {
+    for (int version = 0; version <= 1; version++) {
         std::string data = "hello";
 
         pegasus_value_generator gen;

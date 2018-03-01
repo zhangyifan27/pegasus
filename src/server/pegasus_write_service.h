@@ -45,9 +45,10 @@ private:
 
 class pegasus_server_impl;
 
-// Handle the write requests.
-// As the signatures imply, this class is not responsible for replying the rpc,
-// the caller(pegasus_server_impl) should do it.
+/// Handle the write requests.
+/// As the signatures imply, this class is not responsible for replying the rpc,
+/// the caller(pegasus_server_impl) should do it.
+/// \see pegasus::server::pegasus_server_impl::on_batched_write_requests
 class pegasus_write_service
 {
 public:
@@ -55,24 +56,35 @@ public:
 
     ~pegasus_write_service();
 
-    int multi_put(const db_write_context &ctx,
-                  const dsn::apps::multi_put_request &update,
-                  dsn::apps::update_response &resp);
+    void multi_put(const db_write_context &ctx,
+                   const dsn::apps::multi_put_request &update,
+                   dsn::apps::update_response &resp);
 
-    int multi_remove(const db_write_context &ctx,
-                     const dsn::apps::multi_remove_request &update,
-                     dsn::apps::multi_remove_response &resp);
+    void multi_remove(const db_write_context &ctx,
+                      const dsn::apps::multi_remove_request &update,
+                      dsn::apps::multi_remove_response &resp);
 
+    /// Prepare for batch write.
     void batch_prepare();
 
-    void batch_put(const db_write_context &ctx, const dsn::apps::update_request &update);
+    // NOTE: A batch write may incur a database read for consistency check of timetag.
+    // (see pegasus::pegasus_value_generator::generate_value_v1 for more info about timetag)
+    // To disable the consistency check, unset `verify_timetag` under `pegasus.server` section
+    // in configuration.
 
-    void batch_remove(const db_write_context &ctx, const dsn::blob &key);
+    /// NOTE that `resp` should not be moved or freed while
+    /// the batch is not committed.
+    void batch_put(const db_write_context &ctx,
+                   const dsn::apps::update_request &update,
+                   dsn::apps::update_response &resp);
 
-    int batch_commit(int64_t decree, dsn::apps::update_response &resp);
+    void batch_remove(const db_write_context &ctx,
+                      const dsn::blob &key,
+                      dsn::apps::update_response &resp);
 
-    /// Inserts an empty record into database.
-    int empty_put(const db_write_context &ctx);
+    /// \returns 0 if success, non-0 if failure.
+    /// If the batch contains no updates, 0 is returned.
+    int batch_commit(int64_t decree);
 
 private:
     friend class pegasus_write_service_test;
