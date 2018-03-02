@@ -1417,7 +1417,7 @@ DEFINE_TASK_CODE(UPDATING_ROCKSDB_SSTSIZE, TASK_PRIORITY_COMMON, THREAD_POOL_REP
     opts.compaction_filter = &_key_ttl_compaction_filter;
     opts.default_value_schema_version = PEGASUS_VALUE_SCHEMA_MAX_VERSION;
 
-    if (_gpid.get_app_id() >= 8) {
+    if (_gpid.get_app_id() >= 8 && _gpid.get_app_id() <= 12) {
         opts.compression = rocksdb::kNoCompression;
         opts.target_file_size_base = 64 * 1024 * 1024;
         opts.max_bytes_for_level_base = opts.target_file_size_base * 5;
