@@ -8,6 +8,7 @@
 
 #include <gtest/gtest.h>
 #include <dsn/dist/replication/replica_test_utils.h>
+#include <dsn/utility/filesystem.h>
 
 namespace pegasus {
 namespace server {
@@ -17,6 +18,8 @@ class pegasus_server_test_base : public ::testing::Test
 public:
     pegasus_server_test_base()
     {
+        // Remove rdb to prevent rocksdb recorvery
+        dsn::utils::filesystem::remove_path("./data/rdb");
         _replica_stub = dsn::replication::create_test_replica_stub();
 
         _gpid = dsn::gpid(100, 1);
