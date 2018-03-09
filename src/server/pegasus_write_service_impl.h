@@ -134,10 +134,7 @@ public:
         for (dsn::apps::update_response *uresp : _update_responses) {
             *uresp = resp;
         }
-
-        _batch.Clear();
         _update_responses.clear();
-
         return err;
     }
 
@@ -206,6 +203,7 @@ public:
         if (!status.ok()) {
             derror_rocksdb("write", status.ToString(), "decree: {}", decree);
         }
+        _batch.Clear();
         return status.code();
     }
 
