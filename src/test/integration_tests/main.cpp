@@ -9,7 +9,7 @@
 
 using namespace pegasus::test;
 
-GTEST_API_ int main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     init_client();
 

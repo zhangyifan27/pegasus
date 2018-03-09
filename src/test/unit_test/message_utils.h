@@ -7,7 +7,7 @@
 #include "rrdb/rrdb_types.h"
 #include "rrdb/rrdb.code.definition.h"
 
-#include <dsn/utility/message_utils.h>
+#include <dsn/cpp/message_utils.h>
 
 namespace pegasus {
 

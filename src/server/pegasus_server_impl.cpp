@@ -13,7 +13,7 @@
 
 #include <dsn/utility/utils.h>
 #include <dsn/utility/filesystem.h>
-#include <dsn/utility/message_utils.h>
+#include <dsn/cpp/message_utils.h>
 #include <rocksdb/utilities/checkpoint.h>
 #include <rocksdb/table.h>
 #include <boost/lexical_cast.hpp>
@@ -1948,7 +1948,12 @@ int pegasus_server_impl::on_batched_write_requests_impl(dsn_message_t *requests,
 {
     _put_ctx = db_write_context::put(decree, timestamp, _cluster_id);
     _remove_ctx = db_write_context::remove(decree, timestamp, _cluster_id);
-    dassert(count != 0, "");
+
+    // Write down empty record (RPC_REPLICATION_WRITE_EMPTY) to update
+    // rocksdb's `last_flushed_decree` (see rocksdb::DB::GetLastFlushedDecree())
+    if (count == 0) {
+        return _write_svc->empty_put(_put_ctx);
+    }
 
     dsn::task_code rpc_code(dsn_msg_task_code(requests[0]));
     if (rpc_code == dsn::apps::RPC_RRDB_RRDB_MULTI_PUT) {
@@ -1978,8 +1983,7 @@ void pegasus_server_impl::on_duplicate_impl(bool batched,
                                             dsn::apps::duplicate_response &resp)
 {
     dsn::task_code rpc_code = request.task_code;
-    dsn_message_t write =
-        dsn::move_blob_to_received_message(rpc_code, dsn::blob(request.raw_message));
+    dsn_message_t write = dsn::from_blob_to_received_msg(rpc_code, dsn::blob(request.raw_message));
 
     auto remote_timetag = static_cast<uint64_t>(request.timetag);
     dassert(remote_timetag > 0, "timetag field is not set in duplicate_request");

@@ -125,5 +125,12 @@ void pegasus_write_service::batch_prepare()
     _batch_start_time = dsn_now_ns();
 }
 
+int pegasus_write_service::empty_put(const db_write_context &ctx)
+{
+    std::string empty_key, empty_value;
+    _impl->db_write_batch_put(empty_key, empty_value, 0, ctx);
+    return _impl->db_write(ctx.decree);
+}
+
 } // namespace server
 } // namespace pegasus

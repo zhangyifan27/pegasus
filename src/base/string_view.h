@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <dsn/cpp/string_view.h>
+#include <dsn/utility/string_view.h>
 #include <rocksdb/slice.h>
 
 namespace pegasus {

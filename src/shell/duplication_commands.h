@@ -5,7 +5,7 @@
 #pragma once
 
 #include <fmt/ostream.h>
-#include <dsn/cpp/errors.h>
+#include <dsn/utility/errors.h>
 #include <dsn/dist/replication/duplication_common.h>
 
 #include "command_executor.h"

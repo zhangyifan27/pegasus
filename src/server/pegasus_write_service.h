@@ -86,6 +86,11 @@ public:
     /// If the batch contains no updates, 0 is returned.
     int batch_commit(int64_t decree);
 
+    /// Write empty record.
+    /// See this document (https://github.com/XiaoMi/pegasus/wiki/last_flushed_decree)
+    /// to know why we must have empty write.
+    int empty_put(const db_write_context &ctx);
+
 private:
     friend class pegasus_write_service_test;
 

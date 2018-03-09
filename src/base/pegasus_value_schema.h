@@ -10,12 +10,13 @@
 #include <string.h>
 #include <string>
 #include <vector>
+
 #include <dsn/utility/ports.h>
 #include <dsn/utility/utils.h>
 #include <dsn/utility/blob.h>
+#include <dsn/utility/smart_pointers.h>
+#include <dsn/utility/string_view.h>
 #include <dsn/service_api_c.h>
-#include <dsn/cpp/smart_pointers.h>
-#include <dsn/cpp/string_view.h>
 
 namespace pegasus {
 

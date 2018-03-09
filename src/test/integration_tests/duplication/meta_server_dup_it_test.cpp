@@ -3,7 +3,7 @@
 // can be found in the LICENSE file in the root directory of this source tree.
 
 #include <pegasus/client.h>
-#include <dsn/cpp/smart_pointers.h>
+#include <dsn/utility/smart_pointers.h>
 #include <dsn/dist/replication/duplication_common.h>
 
 #include "test/integration_tests/integration_test_base.h"
@@ -16,7 +16,6 @@ using namespace dsn::replication;
 class meta_server_dup_test : public integration_test_base
 {
 public:
-
     void add_dup(const std::string &app_name, const std::string &remote_cluster)
     {
         ASSERT_EQ(_ddl_client->add_dup(app_name, remote_cluster), dsn::ERR_OK);
@@ -27,7 +26,7 @@ public:
         dsn::error_code err;
         do {
             err = _ddl_client->query_dup(app_name, resp);
-        } while(err == dsn::ERR_FORWARD_TO_OTHERS);
+        } while (err == dsn::ERR_FORWARD_TO_OTHERS);
         ASSERT_EQ(err, dsn::ERR_OK);
     }
 

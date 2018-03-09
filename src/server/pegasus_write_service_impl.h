@@ -141,7 +141,6 @@ public:
         return err;
     }
 
-private:
     // Each of the duplicated update has a timetag (call it `remote_timetag`) that's used
     // to keep consistency between remote cluster and local cluster.
     // Before applying the update, if the record on storage has a larger timetag than

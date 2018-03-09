@@ -4,7 +4,6 @@ project(${MY_PROJ_NAME} C CXX)
 # Source files under CURRENT project directory will be automatically included.
 # You can manually set MY_PROJ_SRC to include source files under other directories.
 set(MY_PROJ_SRC duplication/meta_server_dup_it_test.cpp
-                duplication/replica_server_dup_it_test.cpp
                 duplication/pega_dup_backlog_handler_it_test.cpp
                 ../../server/pegasus_duplication_backlog_handler.cpp
                 )

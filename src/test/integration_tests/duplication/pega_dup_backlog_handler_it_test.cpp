@@ -2,7 +2,7 @@
 // This source code is licensed under the Apache License Version 2.0, which
 // can be found in the LICENSE file in the root directory of this source tree.
 
-#include <dsn/utility/message_utils.h>
+#include <dsn/cpp/message_utils.h>
 #include <dsn/dist/replication/mutation_timestamp.h>
 
 #include "server/pegasus_duplication_backlog_handler.h"

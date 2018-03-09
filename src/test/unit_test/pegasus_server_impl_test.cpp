@@ -7,8 +7,6 @@
 
 #include "base/pegasus_key_schema.h"
 
-#include <dsn/utility/message_utils.h>
-
 namespace pegasus {
 namespace server {
 

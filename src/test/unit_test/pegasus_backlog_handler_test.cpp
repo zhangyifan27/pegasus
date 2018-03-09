@@ -6,7 +6,7 @@
 #include "base/pegasus_rpc_types.h"
 
 #include <gtest/gtest.h>
-#include <dsn/utility/message_utils.h>
+#include <dsn/cpp/message_utils.h>
 
 using namespace pegasus::server;
 

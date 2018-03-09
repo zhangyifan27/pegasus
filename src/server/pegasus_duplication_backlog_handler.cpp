@@ -5,7 +5,7 @@
 #include "pegasus_duplication_backlog_handler.h"
 #include "pegasus_server_impl.h"
 
-#include <dsn/utility/message_utils.h>
+#include <dsn/cpp/message_utils.h>
 #include <dsn/dist/replication/fmt_logging.h>
 
 namespace pegasus {
