@@ -16,6 +16,7 @@ set(MY_SRC_SEARCH_MODE "GLOB")
 set(MY_PROJ_INC_PATH
         "../../include"
         "../.."
+        "../../../rocksdb/include"
         "../../../rdsn/thirdparty/output/include"
         )
 
