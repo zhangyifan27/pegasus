@@ -25,6 +25,14 @@ set(MY_PROJ_LIBS
     pegasus_test_utils
     dsn.replication.ddlclient
     dsn.replication.clientlib
+    dsn_layer2_stateful_type1
+    dsn.block_service.local
+    dsn.block_service.fds
+    galaxy-fds-sdk-cpp
+    PocoNet
+    PocoFoundation
+    PocoNetSSL
+    PocoJSON
     gtest
     fmt
     gflags

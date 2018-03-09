@@ -11,6 +11,17 @@
 namespace pegasus {
 namespace server {
 
+/// Initialize the implementation of backlog_handler_factory.
+struct init_pegasus_backlog_handler_factory
+{
+    init_pegasus_backlog_handler_factory()
+    {
+        dsn::replication::duplication::init_backlog_handler_factory(
+            new pegasus_duplication_backlog_handler_factory());
+    }
+};
+static init_pegasus_backlog_handler_factory _initializer /*NOLINT no-used*/;
+
 static inline dsn::task_code get_duplicate_type(dsn::task_code rpc_code)
 {
     dsn::task_spec *task = dsn::task_spec::get(rpc_code);
