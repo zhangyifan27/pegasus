@@ -49,6 +49,8 @@ class pegasus_duplication_backlog_handler_factory
     using dup_handler = dsn::replication::duplication_backlog_handler;
 
 public:
+    pegasus_duplication_backlog_handler_factory() { pegasus_client_factory::initialize(nullptr); }
+
     std::unique_ptr<dup_handler> create(const std::string &remote, const std::string &app) override
     {
         return dsn::make_unique<pegasus_duplication_backlog_handler>(remote, app);
