@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <dsn/dist/replication/fmt_logging.h>
+#include <dsn/dist/fmt_logging.h>
 #include <dsn/cpp/address.h>
 #include <dsn/dist/replication/replication_other_types.h>
 

@@ -16,7 +16,7 @@ namespace server {
 class pg_duplication_backlog_handler_test : public integration_test_base
 {
 public:
-    pg_duplication_backlog_handler_test() : sender("onebox", "temp")
+    pg_duplication_backlog_handler_test() : sender(dsn::gpid(1, 1), "duplication_cluster", "temp")
     {
         app_client = sender._client;
     }

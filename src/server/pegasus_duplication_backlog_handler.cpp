@@ -6,7 +6,6 @@
 #include "pegasus_server_impl.h"
 
 #include <dsn/cpp/message_utils.h>
-#include <dsn/dist/replication/fmt_logging.h>
 
 namespace pegasus {
 namespace server {
@@ -57,6 +56,21 @@ static inline bool is_delete_operation(dsn_message_t req)
     }
     dfatal("unexpected task code: %s", tc.to_string());
     __builtin_unreachable();
+}
+
+pegasus_duplication_backlog_handler::pegasus_duplication_backlog_handler(
+    dsn::gpid gpid, const std::string &remote_cluster, const std::string &app)
+    : dsn::replication::duplication_backlog_handler(gpid)
+{
+    ddebug_f(
+        "initiates backlog handler for app({}) gpid({}) remote({})", app, gpid, remote_cluster);
+
+    pegasus_client *client =
+        pegasus_client_factory::get_client(remote_cluster.c_str(), app.c_str());
+    _client = static_cast<client::pegasus_client_impl *>(client);
+
+    _cluster_id = static_cast<uint8_t>(dsn_config_get_value_uint64(
+        "pegasus.server", "pegasus_cluster_id", 1, "The ID of this pegasus cluster."));
 }
 
 void pegasus_duplication_backlog_handler::send_request(uint64_t timestamp,

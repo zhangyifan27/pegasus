@@ -5,6 +5,7 @@
 #pragma once
 
 #include <dsn/dist/replication/duplication_backlog_handler.h>
+#include <dsn/dist/fmt_logging.h>
 #include <rrdb/rrdb.code.definition.h>
 
 #include "client_lib/pegasus_client_factory_impl.h"
@@ -16,16 +17,9 @@ namespace server {
 class pegasus_duplication_backlog_handler : public dsn::replication::duplication_backlog_handler
 {
 public:
-    explicit pegasus_duplication_backlog_handler(const std::string &remote_cluster,
-                                                 const std::string &app)
-    {
-        pegasus_client *client =
-            pegasus_client_factory::get_client(remote_cluster.c_str(), app.c_str());
-        _client = static_cast<client::pegasus_client_impl *>(client);
-
-        _cluster_id = static_cast<uint8_t>(dsn_config_get_value_uint64(
-            "pegasus.server", "pegasus_cluster_id", 1, "The ID of this pegasus cluster."));
-    }
+    pegasus_duplication_backlog_handler(dsn::gpid gpid,
+                                        const std::string &remote_cluster,
+                                        const std::string &app);
 
     void duplicate(dsn::replication::mutation_tuple mutation, err_callback cb) override
     {
@@ -51,9 +45,10 @@ class pegasus_duplication_backlog_handler_factory
 public:
     pegasus_duplication_backlog_handler_factory() { pegasus_client_factory::initialize(nullptr); }
 
-    std::unique_ptr<dup_handler> create(const std::string &remote, const std::string &app) override
+    std::unique_ptr<dup_handler>
+    create(dsn::gpid gpid, const std::string &remote, const std::string &app) override
     {
-        return dsn::make_unique<pegasus_duplication_backlog_handler>(remote, app);
+        return dsn::make_unique<pegasus_duplication_backlog_handler>(gpid, remote, app);
     }
 };
 

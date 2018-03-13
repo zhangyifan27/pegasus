@@ -157,7 +157,14 @@ public:
             rocksdb::Status s = _db->Get(*_rd_opts, to_rocksdb_slice(raw_key), &raw_value);
             if (s.ok()) {
                 uint64_t local_timetag = pegasus_extract_timetag(_value_schema_version, raw_value);
-                dassert(local_timetag != new_timetag, "");
+                if (local_timetag == new_timetag && is_remote_update) {
+                    /// ignore if this is a retry attempt from remote.
+                    return 0;
+                }
+                dassert_f(local_timetag != new_timetag,
+                          "timestamps are generated having the same value {}",
+                          local_timetag);
+
                 if (local_timetag > new_timetag) {
                     ddebug_f("[gpid: {}] ignored a stale update with lower timetag [new: "
                              "{}, local: {}, from_remote: {}]",

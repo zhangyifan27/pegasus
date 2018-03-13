@@ -5,7 +5,7 @@
 #include "base/pegasus_key_schema.h"
 #include "pegasus_server_test_base.h"
 
-#include <dsn/dist/replication/fmt_logging.h>
+#include <dsn/dist/fmt_logging.h>
 
 namespace pegasus {
 namespace server {

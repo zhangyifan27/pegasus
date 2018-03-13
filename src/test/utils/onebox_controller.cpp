@@ -8,6 +8,7 @@
 #include <sstream>
 
 #include <dsn/c/api_utilities.h>
+#include <dsn/dist/fmt_logging.h>
 #include <gflags/gflags.h>
 
 DEFINE_string(run_script_path, "", "the path of run.sh");
@@ -40,9 +41,12 @@ void onebox_controller::run_command(const std::string &cmd,
     }
 
     std::string full_cmd = ss.str();
-    ddebug("%s command: %s", cmd.c_str(), full_cmd.c_str());
-    dassert(
-        system(full_cmd.c_str()) == 0, "%s encountered error(%s)", cmd.c_str(), strerror(errno));
+    ddebug_f("{} command: {}", cmd, full_cmd);
+    dassert_f(system(full_cmd.c_str()) == 0,
+              "{} encountered errno({}, {})",
+              cmd.c_str(),
+              errno,
+              strerror(errno));
 }
 
 } // namespace test
