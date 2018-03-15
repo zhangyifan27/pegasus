@@ -43,6 +43,13 @@ public:
 
     explicit data_output(std::string &s) : data_output(&s[0], s.length()) {}
 
+    data_output &write_u16(uint16_t val) { return write_unsigned(val); }
+
+    data_output &write_u32(uint32_t val) { return write_unsigned(val); }
+
+    data_output &write_u64(uint64_t val) { return write_unsigned(val); }
+
+private:
     template <typename T>
     data_output &write_unsigned(T val)
     {
@@ -55,7 +62,6 @@ public:
         return *this;
     }
 
-private:
     void ensure(size_t sz)
     {
         size_t cap = _end - _ptr;
@@ -73,6 +79,21 @@ class data_input
 public:
     explicit data_input(dsn::string_view s) : _p(s.data()), _size(s.size()) {}
 
+    uint16_t read_u16() { return read_unsigned<uint16_t>(); }
+
+    uint32_t read_u32() { return read_unsigned<uint32_t>(); }
+
+    uint64_t read_u64() { return read_unsigned<uint64_t>(); }
+
+    dsn::string_view read_str() { return {_p, _size}; }
+
+    void skip(size_t sz)
+    {
+        ensure(sz);
+        advance(sz);
+    }
+
+private:
     template <typename T>
     T read_unsigned()
     {
@@ -88,15 +109,6 @@ public:
         return val;
     }
 
-    dsn::string_view read_str() { return {_p, _size}; }
-
-    void skip(size_t sz)
-    {
-        ensure(sz);
-        advance(sz);
-    }
-
-private:
     void advance(size_t sz)
     {
         _p += sz;
@@ -109,8 +121,8 @@ private:
     }
 
 private:
-    const char *_p;
-    size_t _size;
+    const char *_p{nullptr};
+    size_t _size{0};
 };
 
 } // namespace pegasus

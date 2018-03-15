@@ -42,11 +42,11 @@ void onebox_controller::run_command(const std::string &cmd,
 
     std::string full_cmd = ss.str();
     ddebug_f("{} command: {}", cmd, full_cmd);
-    dassert_f(system(full_cmd.c_str()) == 0,
-              "{} encountered errno({}, {})",
-              cmd.c_str(),
-              errno,
-              strerror(errno));
+
+    system(full_cmd.c_str());
+    if (errno != 0) {
+        derror_f("{} encountered errno({}, {})", cmd.c_str(), errno, strerror(errno));
+    }
 }
 
 } // namespace test

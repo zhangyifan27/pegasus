@@ -20,8 +20,8 @@ TEST(endian, write_and_read)
     {
         std::string data;
         data.resize(4);
-        data_output(data).write_unsigned<uint32_t>(100);
-        ASSERT_EQ(100, data_input(data).read_unsigned<uint32_t>());
+        data_output(data).write_u32(100);
+        ASSERT_EQ(100, data_input(data).read_u32());
     }
 
     {
@@ -32,18 +32,18 @@ TEST(endian, write_and_read)
         for (uint32_t value = 1; value < 1000000; value += 1000) {
             if (value < std::numeric_limits<uint16_t>::max()) {
                 auto val_16 = static_cast<uint16_t>(value);
-                output.write_unsigned(val_16);
+                output.write_u16(val_16);
             } else {
-                output.write_unsigned(value);
+                output.write_u32(value);
             }
         }
 
         data_input input(data);
         for (uint32_t value = 1; value < 1000000; value += 1000) {
             if (value < std::numeric_limits<uint16_t>::max()) {
-                ASSERT_EQ(value, input.read_unsigned<uint16_t>());
+                ASSERT_EQ(value, input.read_u16());
             } else {
-                ASSERT_EQ(value, input.read_unsigned<uint32_t>());
+                ASSERT_EQ(value, input.read_u32());
             }
         }
     }

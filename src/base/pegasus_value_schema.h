@@ -41,7 +41,7 @@ inline uint32_t pegasus_extract_expire_ts(int version, dsn::string_view value)
 {
     dassert(
         version == 0 || version == 1, "value schema version(%d) must be either v0 or v1", version);
-    return data_input(value).read_unsigned<uint32_t>();
+    return data_input(value).read_u32();
 }
 
 /// Extracts user value from a raw rocksdb value.
@@ -76,7 +76,7 @@ inline uint64_t pegasus_extract_timetag(int version, dsn::string_view value)
     data_input input(value);
     input.skip(sizeof(uint32_t));
 
-    return input.read_unsigned<uint64_t>();
+    return input.read_u64();
 }
 
 /// \return true if expired
@@ -128,7 +128,7 @@ public:
         _write_buf.resize(sizeof(uint32_t));
         _write_slices.clear();
 
-        data_output(_write_buf).write_unsigned(expire_ts);
+        data_output(_write_buf).write_u32(expire_ts);
         _write_slices.emplace_back(_write_buf.data(), _write_buf.size());
 
         if (user_data.length() > 0) {
@@ -181,7 +181,7 @@ public:
         _write_buf.resize(sizeof(uint32_t) + sizeof(uint64_t));
         _write_slices.clear();
 
-        data_output(_write_buf).write_unsigned(expire_ts).write_unsigned(tag);
+        data_output(_write_buf).write_u32(expire_ts).write_u64(tag);
         _write_slices.emplace_back(_write_buf.data(), _write_buf.size());
 
         if (user_data.length() > 0) {
