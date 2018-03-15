@@ -55,11 +55,35 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
                                              "rocksdb_verbose_log",
                                              false,
                                              "print verbose log for debugging, default is false");
+    _abnormal_get_time_threshold_ns = dsn_config_get_value_uint64(
+        "pegasus.server",
+        "rocksdb_abnormal_get_time_threshold_ns",
+        0,
+        "rocksdb_abnormal_get_time_threshold_ns, default is 0, means no check");
+    _abnormal_get_size_threshold = dsn_config_get_value_uint64(
+        "pegasus.server",
+        "rocksdb_abnormal_get_size_threshold",
+        0,
+        "rocksdb_abnormal_get_size_threshold, default is 0, means no check");
 
     _cluster_id = static_cast<uint8_t>(dsn_config_get_value_uint64(
         "pegasus.server", "pegasus_cluster_id", 1, "The ID of this pegasus cluster."));
 
     // init db options
+
+    // rocksdb default: snappy
+    std::string compression_str = dsn_config_get_value_string(
+        "pegasus.server",
+        "rocksdb_compression_type",
+        "none",
+        "rocksdb options.compression, default none. Supported: snappy, none.");
+    if (compression_str == "none") {
+        _db_opts.compression = rocksdb::kNoCompression;
+    } else if (compression_str == "snappy") {
+        _db_opts.compression = rocksdb::kSnappyCompression;
+    } else {
+        dassert("unsupported compression type: %s", compression_str.c_str());
+    }
 
     // rocksdb default: 4MB
     _db_opts.write_buffer_size =
@@ -72,8 +96,15 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
     _db_opts.max_write_buffer_number =
         (int)dsn_config_get_value_uint64("pegasus.server",
                                          "rocksdb_max_write_buffer_number",
+                                         4,
+                                         "rocksdb options.max_write_buffer_number, default 4");
+
+    // rocksdb default: 1
+    _db_opts.max_background_flushes =
+        (int)dsn_config_get_value_uint64("pegasus.server",
+                                         "rocksdb_max_background_flushes",
                                          2,
-                                         "rocksdb options.max_write_buffer_number, default 2");
+                                         "rocksdb options.max_background_flushes, default 2");
 
     // rocksdb default: 1
     _db_opts.max_background_compactions =
@@ -90,15 +121,15 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
     _db_opts.target_file_size_base =
         dsn_config_get_value_uint64("pegasus.server",
                                     "rocksdb_target_file_size_base",
-                                    8388608,
-                                    "rocksdb options.target_file_size_base, default 8MB");
+                                    16777216,
+                                    "rocksdb options.target_file_size_base, default 16MB");
 
     // rocksdb default: 10MB
     _db_opts.max_bytes_for_level_base =
         dsn_config_get_value_uint64("pegasus.server",
                                     "rocksdb_max_bytes_for_level_base",
-                                    41943040,
-                                    "rocksdb options.max_bytes_for_level_base, default 40MB");
+                                    83886080,
+                                    "rocksdb options.max_bytes_for_level_base, default 80MB");
 
     // rocksdb default: 10
     _db_opts.max_grandparent_overlap_factor = (int)dsn_config_get_value_uint64(
@@ -125,8 +156,8 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
     _db_opts.level0_stop_writes_trigger =
         (int)dsn_config_get_value_uint64("pegasus.server",
                                          "rocksdb_level0_stop_writes_trigger",
-                                         24,
-                                         "rocksdb options.level0_stop_writes_trigger, default 24");
+                                         30,
+                                         "rocksdb options.level0_stop_writes_trigger, default 30");
 
     // disable table block cache, default: false
     if ((bool)dsn_config_get_value_bool(
@@ -428,6 +459,24 @@ void pegasus_server_impl::on_get(const ::dsn::blob &key,
             derror("%s: rocksdb get failed for get: error = %s",
                    replica_name(),
                    status.ToString().c_str());
+        }
+    }
+
+    if (_abnormal_get_time_threshold_ns || _abnormal_get_size_threshold) {
+        uint64_t time_used = dsn_now_ns() - start_time;
+        if ((_abnormal_get_time_threshold_ns && time_used >= _abnormal_get_time_threshold_ns) ||
+            (_abnormal_get_size_threshold && value->size() >= _abnormal_get_size_threshold)) {
+            ::dsn::blob hash_key, sort_key;
+            pegasus_restore_key(key, hash_key, sort_key);
+            dwarn("%s: rocksdb abnormal get: "
+                  "hash_key = \"%s\", sort_key = \"%s\", return = %s, "
+                  "value_size = %d, time_used = %" PRIu64 " ns",
+                  replica_name(),
+                  ::pegasus::utils::c_escape_string(hash_key).c_str(),
+                  ::pegasus::utils::c_escape_string(sort_key).c_str(),
+                  status.ToString().c_str(),
+                  (int)value->size(),
+                  time_used);
         }
     }
 
@@ -1207,10 +1256,18 @@ DEFINE_TASK_CODE(UPDATING_ROCKSDB_SSTSIZE, TASK_PRIORITY_COMMON, THREAD_POOL_REP
                    ci);
             auto err = async_checkpoint(false);
             if (err != ::dsn::ERR_OK) {
-                derror("%s: create checkpoint failed, error = %s", replica_name(), err.to_string());
-                delete _db;
-                _db = nullptr;
-                return err;
+                dwarn("%s: create checkpoint failed, error = %s, retry again",
+                      replica_name(),
+                      err.to_string());
+                err = async_checkpoint(false);
+                if (err != ::dsn::ERR_OK) {
+                    derror("%s: create checkpoint failed, error = %s",
+                           replica_name(),
+                           err.to_string());
+                    delete _db;
+                    _db = nullptr;
+                    return err;
+                }
             }
             dassert(ci == last_durable_decree(),
                     "last durable decree mismatch after checkpoint: %" PRId64 " vs %" PRId64,
@@ -1258,8 +1315,10 @@ DEFINE_TASK_CODE(UPDATING_ROCKSDB_SSTSIZE, TASK_PRIORITY_COMMON, THREAD_POOL_REP
         rocksdb::FlushOptions options;
         options.wait = true;
         auto status = _db->Flush(options);
-        if (!status.ok()) {
-            derror("%s: flush memtable failed: %s", replica_name(), status.ToString().c_str());
+        if (!status.ok() && !status.IsNoNeedOperate()) {
+            derror("%s: flush memtable on close failed: %s",
+                   replica_name(),
+                   status.ToString().c_str());
         }
     }
 

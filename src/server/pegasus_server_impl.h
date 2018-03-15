@@ -259,6 +259,8 @@ private:
     dsn::gpid _gpid;
     std::string _primary_address;
     bool _verbose_log;
+    uint64_t _abnormal_get_time_threshold_ns;
+    uint64_t _abnormal_get_size_threshold;
 
     uint8_t _cluster_id;
 
