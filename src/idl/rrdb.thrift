@@ -96,6 +96,7 @@ struct multi_get_request
     9:bool          stop_inclusive;
     10:filter_type  sort_key_filter_type;
     11:dsn.blob     sort_key_filter_pattern;
+    12:bool         reverse; // iterate in reverse order
 }
 
 struct multi_get_response
