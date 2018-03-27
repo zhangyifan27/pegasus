@@ -892,7 +892,8 @@ void pegasus_server_impl::on_multi_get(const ::dsn::apps::multi_get_request &req
         if (!request.reverse) {
             it->Seek(start);
             bool first_exclusive = !start_inclusive;
-            while (count < max_kv_count && size < max_kv_size && it->Valid()) {
+            while (count < max_kv_count && (count + expire_count) < max_kv_count + max_kv_count &&
+                   size < max_kv_size && it->Valid()) {
                 // check stop sort key
                 int c = it->key().compare(stop);
                 if (c > 0 || (c == 0 && !stop_inclusive)) {
