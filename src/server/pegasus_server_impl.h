@@ -194,6 +194,7 @@ private:
     bool _verbose_log;
     uint64_t _abnormal_get_time_threshold_ns;
     uint64_t _abnormal_get_size_threshold;
+    uint64_t _multi_get_max_expire_count;
 
     KeyWithTTLCompactionFilter _key_ttl_compaction_filter;
     rocksdb::Options _db_opts;

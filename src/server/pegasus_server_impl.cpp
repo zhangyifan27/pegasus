@@ -61,6 +61,11 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
         "rocksdb_abnormal_get_size_threshold",
         0,
         "rocksdb_abnormal_get_size_threshold, default is 0, means no check");
+    _multi_get_max_expire_count = dsn_config_get_value_uint64(
+        "pegasus.server",
+        "multi_get_max_expire_count",
+        0,
+        "multi_get_max_expire_count, default is 0, means no check");
 
     // init db options
 
@@ -892,8 +897,7 @@ void pegasus_server_impl::on_multi_get(const ::dsn::apps::multi_get_request &req
         if (!request.reverse) {
             it->Seek(start);
             bool first_exclusive = !start_inclusive;
-            while (count < max_kv_count && (count + expire_count) < max_kv_count + max_kv_count &&
-                   size < max_kv_size && it->Valid()) {
+            while (count < max_kv_count && size < max_kv_size && it->Valid()) {
                 // check stop sort key
                 int c = it->key().compare(stop);
                 if (c > 0 || (c == 0 && !stop_inclusive)) {
@@ -926,6 +930,10 @@ void pegasus_server_impl::on_multi_get(const ::dsn::apps::multi_get_request &req
                     size += kv.key.length() + kv.value.length();
                 } else if (r == 2) {
                     expire_count++;
+                    if (_multi_get_max_expire_count > 0 && expire_count > _multi_get_max_expire_count) {
+                        // too many expire count
+                        break;
+                    }
                 } else { // r == 3
                     filter_count++;
                 }
@@ -975,6 +983,10 @@ void pegasus_server_impl::on_multi_get(const ::dsn::apps::multi_get_request &req
                     size += kv.key.length() + kv.value.length();
                 } else if (r == 2) {
                     expire_count++;
+                    if (_multi_get_max_expire_count > 0 && expire_count > _multi_get_max_expire_count) {
+                        // too many expire count
+                        break;
+                    }
                 } else { // r == 3
                     filter_count++;
                 }
