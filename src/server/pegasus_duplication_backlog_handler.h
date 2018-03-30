@@ -34,6 +34,8 @@ private:
     friend class pg_duplication_backlog_handler_test;
 
     client::pegasus_client_impl *_client;
+
+    // cluster id of local cluster.
     uint8_t _cluster_id;
 };
 

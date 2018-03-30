@@ -18,3 +18,6 @@
 
 #define ddebug_rocksdb(op, ...)                                                                    \
     ddebug_f("{}: rocksdb {}: [{}]", replica_name(), op, fmt::format(__VA_ARGS__))
+
+#define dwarn_rocksdb(op, ...)                                                                     \
+    dwarn_f("{}: rocksdb {}: [{}]", replica_name(), op, fmt::format(__VA_ARGS__))

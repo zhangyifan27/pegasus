@@ -6,9 +6,12 @@
 #include "pegasus_server_impl.h"
 
 #include <dsn/cpp/message_utils.h>
+#include <dsn/utility/chrono_literals.h>
 
 namespace pegasus {
 namespace server {
+
+using namespace dsn::literals::chrono_literals;
 
 bool _dummy = dsn::replication::register_backlog_handler_factory(
     []() { return new pegasus_duplication_backlog_handler_factory(); });
@@ -98,7 +101,7 @@ void pegasus_duplication_backlog_handler::send_request(uint64_t timestamp,
     uint64_t partition_hash = get_hash_from_request(rpc_code, request->raw_message);
     duplicate_rpc rpc(std::move(request),
                       duplicate_type,
-                      std::chrono::milliseconds(10000), // TODO(wutao1): configurable timeout.
+                      10_s, // TODO(wutao1): configurable timeout.
                       partition_hash);
 
     _client->async_duplicate(rpc, [ cb = std::move(cb), rpc ](dsn::error_code err) {

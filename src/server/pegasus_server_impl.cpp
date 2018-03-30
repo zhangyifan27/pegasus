@@ -462,21 +462,27 @@ void pegasus_server_impl::on_get(const ::dsn::blob &key,
         }
     }
 
-    if (_abnormal_get_time_threshold_ns || _abnormal_get_size_threshold) {
+    if ((_abnormal_get_time_threshold_ns != 0) || (_abnormal_get_size_threshold != 0)) {
         uint64_t time_used = dsn_now_ns() - start_time;
-        if ((_abnormal_get_time_threshold_ns && time_used >= _abnormal_get_time_threshold_ns) ||
-            (_abnormal_get_size_threshold && value->size() >= _abnormal_get_size_threshold)) {
+        bool is_abnormal = false;
+        if (_abnormal_get_time_threshold_ns != 0 && time_used >= _abnormal_get_time_threshold_ns) {
+            is_abnormal = true;
+        }
+        if (_abnormal_get_size_threshold != 0 && value.size() >= _abnormal_get_size_threshold) {
+            is_abnormal = true;
+        }
+        if (is_abnormal) {
             ::dsn::blob hash_key, sort_key;
             pegasus_restore_key(key, hash_key, sort_key);
-            dwarn("%s: rocksdb abnormal get: "
-                  "hash_key = \"%s\", sort_key = \"%s\", return = %s, "
-                  "value_size = %d, time_used = %" PRIu64 " ns",
-                  replica_name(),
-                  ::pegasus::utils::c_escape_string(hash_key).c_str(),
-                  ::pegasus::utils::c_escape_string(sort_key).c_str(),
-                  status.ToString().c_str(),
-                  (int)value->size(),
-                  time_used);
+            dwarn_rocksdb("abnormal get",
+                          "hash_key = \"{}\", sort_key = \"{}\", return = {}, "
+                          "value_size = {}, time_used = {} ns",
+                          replica_name(),
+                          ::pegasus::utils::c_escape_string(hash_key),
+                          ::pegasus::utils::c_escape_string(sort_key),
+                          status.ToString(),
+                          value.size(),
+                          time_used);
         }
     }
 
@@ -2134,7 +2140,7 @@ void pegasus_server_impl::request_key_check(int64_t decree, dsn_message_t m, con
         uint64_t partition_hash = pegasus_key_hash(key);
         dassert(msg->header->client.partition_hash == partition_hash,
                 "inconsistent partition hash");
-        int thread_hash = dsn_gpid_to_thread_hash(_gpid);
+        int thread_hash = _gpid.thread_hash();
         dassert(msg->header->client.thread_hash == thread_hash, "inconsistent thread hash");
     }
 

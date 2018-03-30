@@ -8,9 +8,6 @@ namespace apps {
 typedef ::dsn::rpc_holder<::dsn::apps::duplicate_request, ::dsn::apps::duplicate_response>
     duplicate_rpc;
 
-typedef ::dsn::rpc_holder<::dsn::apps::duplicate_request, ::dsn::apps::duplicate_response>
-    batched_duplicate_rpc;
-
 class rrdb_client : public virtual ::dsn::clientlet
 {
 public:
