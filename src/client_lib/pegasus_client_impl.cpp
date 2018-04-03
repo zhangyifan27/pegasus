@@ -10,7 +10,7 @@
 #include <string>
 #include <stdint.h>
 
-#include <dsn/cpp/auto_codes.h>
+#include <dsn/tool-api/auto_codes.h>
 #include <dsn/cpp/serialization_helper/dsn.layer2_types.h>
 #include <rrdb/rrdb.code.definition.h>
 #include <rrdb/rrdb.types.h>
@@ -450,6 +450,7 @@ void pegasus_client_impl::async_multi_get(const std::string &hash_key,
     req.max_kv_count = max_fetch_count;
     req.max_kv_size = max_fetch_size;
     req.no_value = options.no_value;
+    req.reverse = options.reverse;
     req.sort_key_filter_type = (dsn::apps::filter_type::type)options.sort_key_filter_type;
     req.sort_key_filter_pattern = ::dsn::blob(
         options.sort_key_filter_pattern.data(), 0, options.sort_key_filter_pattern.size());

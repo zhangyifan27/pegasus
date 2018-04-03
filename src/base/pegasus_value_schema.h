@@ -86,10 +86,11 @@ inline bool check_if_record_expired(uint32_t epoch_now, uint32_t expire_ts)
 }
 
 /// \return true if expired
-inline bool
-check_if_record_expired(uint32_t version, uint32_t epoch_now, dsn::string_view raw_value)
+inline bool check_if_record_expired(uint32_t value_schema_version,
+                                    uint32_t epoch_now,
+                                    dsn::string_view raw_value)
 {
-    uint32_t expire_ts = pegasus_extract_expire_ts(version, raw_value);
+    uint32_t expire_ts = pegasus_extract_expire_ts(value_schema_version, raw_value);
     return check_if_record_expired(epoch_now, expire_ts);
 }
 

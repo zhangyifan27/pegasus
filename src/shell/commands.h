@@ -761,12 +761,13 @@ inline bool multi_get_range(command_executor *e, shell_context *sc, arguments ar
                                            {"sort_key_filter_pattern", required_argument, 0, 'y'},
                                            {"max_count", required_argument, 0, 'n'},
                                            {"no_value", no_argument, 0, 'i'},
+                                           {"reverse", no_argument, 0, 'r'},
                                            {0, 0, 0, 0}};
     optind = 0;
     while (true) {
         int option_index = 0;
         int c;
-        c = getopt_long(args.argc, args.argv, "a:b:s:y:n:i", long_options, &option_index);
+        c = getopt_long(args.argc, args.argv, "a:b:s:y:n:ir", long_options, &option_index);
         if (c == -1)
             break;
         switch (c) {
@@ -803,6 +804,9 @@ inline bool multi_get_range(command_executor *e, shell_context *sc, arguments ar
         case 'i':
             options.no_value = true;
             break;
+        case 'r':
+            options.reverse = true;
+            break;
         default:
             return false;
         }
@@ -824,6 +828,7 @@ inline bool multi_get_range(command_executor *e, shell_context *sc, arguments ar
     }
     fprintf(stderr, "max_count: %d\n", max_count);
     fprintf(stderr, "no_value: %s\n", options.no_value ? "true" : "false");
+    fprintf(stderr, "reverse: %s\n", options.reverse ? "true" : "false");
     fprintf(stderr, "\n");
 
     std::map<std::string, std::string> kvs;
@@ -1845,8 +1850,7 @@ inline bool copy_data(command_executor *e, shell_context *sc, arguments args)
                                                            timeout_ms,
                                                            scanners[i]->get_smart_wrapper(),
                                                            target_client,
-                                                           &error_occurred,
-                                                           false);
+                                                           &error_occurred);
         contexts.push_back(context);
         dsn::tasking::enqueue(LPC_SCAN_DATA, nullptr, std::bind(scan_data_next, context));
     }
@@ -2008,8 +2012,7 @@ inline bool clear_data(command_executor *e, shell_context *sc, arguments args)
                                                            timeout_ms,
                                                            scanners[i]->get_smart_wrapper(),
                                                            sc->pg_client,
-                                                           &error_occurred,
-                                                           false);
+                                                           &error_occurred);
         contexts.push_back(context);
         dsn::tasking::enqueue(LPC_SCAN_DATA, nullptr, std::bind(scan_data_next, context));
     }
@@ -2079,18 +2082,20 @@ inline bool count_data(command_executor *e, shell_context *sc, arguments args)
                                            {"max_batch_count", required_argument, 0, 'b'},
                                            {"timeout_ms", required_argument, 0, 't'},
                                            {"stat_size", no_argument, 0, 'z'},
+                                           {"top_count", required_argument, 0, 'c'},
                                            {0, 0, 0, 0}};
 
     int max_split_count = 100000000;
     int max_batch_count = 500;
     int timeout_ms = sc->timeout_ms;
     bool stat_size = false;
+    int top_count = 0;
 
     optind = 0;
     while (true) {
         int option_index = 0;
         int c;
-        c = getopt_long(args.argc, args.argv, "s:b:t:z", long_options, &option_index);
+        c = getopt_long(args.argc, args.argv, "s:b:t:zc:", long_options, &option_index);
         if (c == -1)
             break;
         switch (c) {
@@ -2114,6 +2119,12 @@ inline bool count_data(command_executor *e, shell_context *sc, arguments args)
             break;
         case 'z':
             stat_size = true;
+            break;
+        case 'c':
+            if (!::pegasus::utils::buf2int(optarg, strlen(optarg), top_count)) {
+                fprintf(stderr, "parse %s as top_count failed\n", optarg);
+                return false;
+            }
             break;
         default:
             return false;
@@ -2141,6 +2152,7 @@ inline bool count_data(command_executor *e, shell_context *sc, arguments args)
     fprintf(stderr, "INFO: max_batch_count = %d\n", max_batch_count);
     fprintf(stderr, "INFO: timeout_ms = %d\n", timeout_ms);
     fprintf(stderr, "INFO: stat_size = %s\n", stat_size ? "true" : "false");
+    fprintf(stderr, "INFO: top_count = %d\n", top_count);
 
     std::vector<pegasus::pegasus_client::pegasus_scanner *> scanners;
     pegasus::pegasus_client::scan_options options;
@@ -2165,7 +2177,8 @@ inline bool count_data(command_executor *e, shell_context *sc, arguments args)
                                                            scanners[i]->get_smart_wrapper(),
                                                            sc->pg_client,
                                                            &error_occurred,
-                                                           stat_size);
+                                                           stat_size,
+                                                           top_count);
         contexts.push_back(context);
         dsn::tasking::enqueue(LPC_SCAN_DATA, nullptr, std::bind(scan_data_next, context));
     }
@@ -2274,11 +2287,6 @@ inline bool count_data(command_executor *e, shell_context *sc, arguments args)
         }
     }
 
-    for (int i = 0; i < scanners.size(); i++) {
-        delete contexts[i];
-    }
-    contexts.clear();
-
     fprintf(stderr,
             "\nCount %s, total %ld rows.\n",
             error_occurred.load() ? "terminated" : "done",
@@ -2302,7 +2310,35 @@ inline bool count_data(command_executor *e, shell_context *sc, arguments args)
         fprintf(stderr, "[row].size_sum = %ld\n", row_size_sum);
         fprintf(stderr, "[row].size_max = %ld\n", row_size_max);
         fprintf(stderr, "[row].size_avg = %.2f\n", row_size_avg);
+        if (top_count > 0) {
+            top_container::top_heap heap;
+            for (int i = 0; i < scanners.size(); i++) {
+                top_container::top_heap &h = contexts[i]->top_rows.all();
+                while (!h.empty()) {
+                    heap.push(h.top());
+                    h.pop();
+                }
+            }
+            for (int i = 1; i <= top_count && !heap.empty(); i++) {
+                const top_container::top_heap_item &item = heap.top();
+                fprintf(stderr,
+                        "[top][%d].hash_key = \"%s\"\n",
+                        i,
+                        pegasus::utils::c_escape_string(item.hash_key, sc->escape_all).c_str());
+                fprintf(stderr,
+                        "[top][%d].sort_key = \"%s\"\n",
+                        i,
+                        pegasus::utils::c_escape_string(item.sort_key, sc->escape_all).c_str());
+                fprintf(stderr, "[top][%d].row_size = %ld\n", i, item.row_size);
+                heap.pop();
+            }
+        }
     }
+
+    for (int i = 0; i < scanners.size(); i++) {
+        delete contexts[i];
+    }
+    contexts.clear();
 
     return true;
 }
@@ -3128,7 +3164,8 @@ inline bool app_stat(command_executor *e, shell_context *sc, arguments args)
         << std::setw(15) << std::right << "REMOVE" << std::setw(15) << std::right << "MULTI_REMOVE"
         << std::setw(15) << std::right << "SCAN" << std::setw(15) << std::right << "expire_count"
         << std::setw(15) << std::right << "filter_count" << std::setw(15) << std::right
-        << "storage(MB)" << std::setw(15) << std::right << "sst_count" << std::endl;
+        << "abmornal_count" << std::setw(15) << std::right << "storage(MB)" << std::setw(15)
+        << std::right << "sst_count" << std::endl;
     rows.resize(rows.size() + 1);
     row_data &sum = rows.back();
     for (int i = 0; i < rows.size() - 1; ++i) {
@@ -3142,6 +3179,7 @@ inline bool app_stat(command_executor *e, shell_context *sc, arguments args)
         sum.scan_qps += row.scan_qps;
         sum.recent_expire_count += row.recent_expire_count;
         sum.recent_filter_count += row.recent_filter_count;
+        sum.recent_abnormal_count += row.recent_abnormal_count;
         sum.storage_mb += row.storage_mb;
         sum.storage_count += row.storage_count;
     }
@@ -3164,6 +3202,7 @@ inline bool app_stat(command_executor *e, shell_context *sc, arguments args)
         PRINT_QPS(scan_qps);
         out << std::setw(15) << std::right << (int64_t)row.recent_expire_count << std::setw(15)
             << std::right << (int64_t)row.recent_filter_count << std::setw(15) << std::right
+            << (int64_t)row.recent_abnormal_count << std::setw(15) << std::right
             << (int64_t)row.storage_mb << std::setw(15) << std::right << (int64_t)row.storage_count
             << std::endl;
     }
@@ -3473,18 +3512,15 @@ inline bool query_backup_policy(command_executor *e, shell_context *sc, argument
 
 inline bool modify_backup_policy(command_executor *e, shell_context *sc, arguments args)
 {
-    static struct option long_options[] = {{"add_app", required_argument, 0, 'a'},
+    static struct option long_options[] = {{"policy_name", required_argument, 0, 'p'},
+                                           {"add_app", required_argument, 0, 'a'},
                                            {"remove_app", required_argument, 0, 'r'},
                                            {"backup_interval_seconds", required_argument, 0, 'i'},
                                            {"backup_history_count", required_argument, 0, 'c'},
                                            {"start_time", required_argument, 0, 's'},
                                            {0, 0, 0, 0}};
-    if (args.argc < 2) {
-        fprintf(stderr, "invalid parameter\n");
-        return false;
-    }
 
-    std::string policy_name = args.argv[1];
+    std::string policy_name;
     std::vector<int32_t> add_appids;
     std::vector<int32_t> remove_appids;
     int64_t backup_interval_seconds = 0;
@@ -3492,19 +3528,17 @@ inline bool modify_backup_policy(command_executor *e, shell_context *sc, argumen
     std::string start_time;
     std::vector<std::string> app_id_strs;
 
-    if (policy_name.empty()) {
-        fprintf(stderr, "empty policy name\n");
-        return false;
-    }
-
     optind = 0;
     while (true) {
         int option_index = 0;
         int c;
-        c = getopt_long(args.argc, args.argv, "a:r:i:c:s:", long_options, &option_index);
+        c = getopt_long(args.argc, args.argv, "p:a:r:i:c:s:", long_options, &option_index);
         if (c == -1)
             break;
         switch (c) {
+        case 'p':
+            policy_name = optarg;
+            break;
         case 'a':
             app_id_strs.clear();
             ::dsn::utils::split_args(optarg, app_id_strs, ',');
@@ -3555,6 +3589,11 @@ inline bool modify_backup_policy(command_executor *e, shell_context *sc, argumen
         }
     }
 
+    if (policy_name.empty()) {
+        fprintf(stderr, "empty policy name\n");
+        return false;
+    }
+
     if (!start_time.empty()) {
         int32_t hour = 0, min = 0;
         if (sscanf(start_time.c_str(), "%d:%d", &hour, &min) != 2 || hour > 24 || hour < 0 ||
@@ -3582,12 +3621,25 @@ inline bool modify_backup_policy(command_executor *e, shell_context *sc, argumen
 
 inline bool disable_backup_policy(command_executor *e, shell_context *sc, arguments args)
 {
-    if (args.argc != 2) {
-        fprintf(stderr, "invalid parameter\n");
-        return false;
-    }
+    static struct option long_options[] = {{"policy_name", required_argument, 0, 'p'},
+                                           {0, 0, 0, 0}};
 
-    std::string policy_name = args.argv[1];
+    std::string policy_name;
+    optind = 0;
+    while (true) {
+        int option_index = 0;
+        int c;
+        c = getopt_long(args.argc, args.argv, "p:", long_options, &option_index);
+        if (c == -1)
+            break;
+        switch (c) {
+        case 'p':
+            policy_name = optarg;
+            break;
+        default:
+            return false;
+        }
+    }
 
     if (policy_name.empty()) {
         fprintf(stderr, "empty policy name\n");
@@ -3605,12 +3657,24 @@ inline bool disable_backup_policy(command_executor *e, shell_context *sc, argume
 
 inline bool enable_backup_policy(command_executor *e, shell_context *sc, arguments args)
 {
-    if (args.argc != 2) {
-        fprintf(stderr, "invalid parameter\n");
-        return false;
+    static struct option long_options[] = {{"policy_name", required_argument, 0, 'p'},
+                                           {0, 0, 0, 0}};
+    std::string policy_name;
+    optind = 0;
+    while (true) {
+        int option_index = 0;
+        int c;
+        c = getopt_long(args.argc, args.argv, "p:", long_options, &option_index);
+        if (c == -1)
+            break;
+        switch (c) {
+        case 'p':
+            policy_name = optarg;
+            break;
+        default:
+            return false;
+        }
     }
-
-    std::string policy_name = args.argv[1];
 
     if (policy_name.empty()) {
         fprintf(stderr, "empty policy name\n");

@@ -3,4 +3,6 @@
 // can be found in the LICENSE file in the root directory of this source tree.
 
 #pragma once
-#define PEGASUS_VERSION "1.9.SNAPSHOT"
+
+void upgrader_initialize(const char *config_file);
+void upgrader_start();

@@ -245,6 +245,8 @@ private:
 
     void updating_rocksdb_sstsize();
 
+    virtual void manual_compact();
+
     // get the absolute path of restore directory and the flag whether force restore from env
     // return
     //      std::pair<std::string, bool>, pair.first is the path of the restore dir; pair.second is
@@ -261,6 +263,9 @@ private:
     bool _verbose_log;
     uint64_t _abnormal_get_time_threshold_ns;
     uint64_t _abnormal_get_size_threshold;
+    uint64_t _abnormal_multi_get_time_threshold_ns;
+    uint64_t _abnormal_multi_get_size_threshold;
+    uint64_t _abnormal_multi_get_iterate_count_threshold;
 
     uint8_t _cluster_id;
 
@@ -303,6 +308,7 @@ private:
 
     ::dsn::perf_counter_wrapper _pfc_recent_expire_count;
     ::dsn::perf_counter_wrapper _pfc_recent_filter_count;
+    ::dsn::perf_counter_wrapper _pfc_recent_abnormal_count;
     ::dsn::perf_counter_wrapper _pfc_sst_count;
     ::dsn::perf_counter_wrapper _pfc_sst_size;
 };
