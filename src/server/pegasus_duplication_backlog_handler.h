@@ -35,8 +35,8 @@ private:
 
     client::pegasus_client_impl *_client;
 
-    // cluster id of local cluster.
-    uint8_t _cluster_id;
+    uint8_t _cluster_id{0}; // cluster id of local cluster.
+    uint8_t _remote_cluster_id{0};
 };
 
 class pegasus_duplication_backlog_handler_factory

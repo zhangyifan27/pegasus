@@ -74,6 +74,8 @@ pegasus_duplication_backlog_handler::pegasus_duplication_backlog_handler(
 
     _cluster_id = static_cast<uint8_t>(dsn_config_get_value_uint64(
         "pegasus.server", "pegasus_cluster_id", 1, "The ID of this pegasus cluster."));
+
+    _remote_cluster_id = static_cast<uint8_t>(dsn_uri_to_cluster_id(remote_cluster.c_str()));
 }
 
 void pegasus_duplication_backlog_handler::send_request(uint64_t timestamp,
@@ -87,6 +89,15 @@ void pegasus_duplication_backlog_handler::send_request(uint64_t timestamp,
     if (duplicate_type.code() != -1 && is_duplicate_type(rpc_code)) {
         dsn::apps::duplicate_request request;
         dsn::from_blob_to_thrift(data, request);
+
+        uint8_t from_cluster_id =
+            extract_cluster_id_from_timetag(static_cast<uint64_t>(request.timetag));
+        if (from_cluster_id == _remote_cluster_id) {
+            // ignore this mutation to prevent infinite replication loop.
+            cb(dsn::error_s::ok());
+            return;
+        }
+
         rpc_code = request.task_code;
         data = std::move(request.raw_message);
         duplicate_type = get_duplicate_type(rpc_code);
