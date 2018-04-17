@@ -2,11 +2,11 @@
 // This source code is licensed under the Apache License Version 2.0, which
 // can be found in the LICENSE file in the root directory of this source tree.
 
-#include <fmt/format.h>
+#include <dsn/dist/fmt_logging.h>
 #include <dsn/cpp/address.h>
 
 /// Overloads fmt::format_arg for the basic types in rDSN, so that
-/// they can be formated using fmt::format("{}").
+/// they can be formatted using fmt::format("{}").
 
 namespace fmt {
 

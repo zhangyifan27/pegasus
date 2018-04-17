@@ -2,19 +2,19 @@
 // This source code is licensed under the Apache License Version 2.0, which
 // can be found in the LICENSE file in the root directory of this source tree.
 
+#include "test/utils/cluster_data_verifier.h"
+#include "test/utils/client_init.h"
+
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
-#include "test/utils/client_init.h"
+using namespace pegasus;
 
-using namespace pegasus::test;
-
-int main(int argc, char **argv)
+GTEST_API_ int main(int argc, char **argv)
 {
-    init_client();
-
     gflags::ParseCommandLineFlags(&argc, &argv, true);
     testing::InitGoogleTest(&argc, argv);
-    int ans = RUN_ALL_TESTS();
-    dsn_exit(ans);
+    test::init_client();
+
+    RUN_ALL_TESTS();
 }

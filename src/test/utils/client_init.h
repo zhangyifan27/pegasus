@@ -6,21 +6,30 @@
 
 #include <pegasus/client.h>
 #include <dsn/service_api_c.h>
+#include <dsn/utility/string_view.h>
 
 namespace pegasus {
 namespace test {
-
-std::unique_ptr<pegasus_client> p_client;
 
 // We must run init_client before everything. It sets up the underlying
 // rDSN environment and initializes a global pegasus client.
 inline void init_client()
 {
     if (!pegasus_client_factory::initialize("config.ini")) {
-        derror("MainThread: init pegasus failed");
-        dsn_exit(-1);
+        dfatal("failed to initialize pegasus client");
     }
-    p_client.reset(pegasus_client_factory::get_client("onebox", "test_app"));
+}
+
+inline pegasus_client *must_get_client(dsn::string_view cluster_name, dsn::string_view app_name)
+{
+    auto c = pegasus_client_factory::get_client(cluster_name.data(), app_name.data());
+    if (c == nullptr) {
+        dfatal("failed to create pegasus client for [cluster: %s, app: %s]",
+               cluster_name.data(),
+               app_name.data());
+        __builtin_unreachable();
+    }
+    return c;
 }
 
 } // namespace test
