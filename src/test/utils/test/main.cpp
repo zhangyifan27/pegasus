@@ -12,9 +12,9 @@ using namespace pegasus;
 
 GTEST_API_ int main(int argc, char **argv)
 {
+    testing::InitGoogleTest(&argc, argv); // to enable --gtest_filter flag.
     gflags::ParseCommandLineFlags(&argc, &argv, true);
-    testing::InitGoogleTest(&argc, argv);
-    test::init_client();
 
-    RUN_ALL_TESTS();
+    test::init_pegasus_client();
+    dsn_exit(RUN_ALL_TESTS());
 }

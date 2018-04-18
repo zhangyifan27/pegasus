@@ -5,7 +5,7 @@
 #include <dsn/tool-api/task_code.h>
 #include <dsn/dist/fmt_logging.h>
 
-#include "cluster_data_verfifier_impl.h"
+#include "cluster_data_verifier_impl.h"
 
 namespace pegasus {
 namespace test {
@@ -43,10 +43,6 @@ data_verifier::data_verifier(pegasus_client *insert_client,
     _verify = dsn::make_unique<verify_data>(verify_client, &_progress);
 
     from(*_recover).link(*_insert).link(*_verify).link(*_insert);
-
-    dassert(_recover->__pipeline != nullptr, "");
-    dassert(_insert->__pipeline != nullptr, "");
-    dassert(_verify->__pipeline != nullptr, "");
 }
 
 data_verifier::histogram_printer_t::histogram_printer_t()

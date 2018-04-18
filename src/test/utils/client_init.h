@@ -11,9 +11,9 @@
 namespace pegasus {
 namespace test {
 
-// We must run init_client before everything. It sets up the underlying
+// We must run init_pegasus_client before everything. It sets up the underlying
 // rDSN environment and initializes a global pegasus client.
-inline void init_client()
+inline void init_pegasus_client()
 {
     if (!pegasus_client_factory::initialize("config.ini")) {
         dfatal("failed to initialize pegasus client");

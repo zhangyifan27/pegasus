@@ -17,7 +17,7 @@ int main(int argc, char **argv)
 {
     gflags::ParseCommandLineFlags(&argc, &argv, true);
 
-    test::init_client();
+    test::init_pegasus_client();
     auto insert_client = test::must_get_client(FLAGS_local_cluster, FLAGS_table_name);
     auto verify_client = test::must_get_client(FLAGS_remote_cluster, FLAGS_table_name);
 

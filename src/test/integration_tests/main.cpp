@@ -11,7 +11,7 @@ using namespace pegasus::test;
 
 int main(int argc, char **argv)
 {
-    init_client();
+    init_pegasus_client();
 
     gflags::ParseCommandLineFlags(&argc, &argv, true);
     testing::InitGoogleTest(&argc, argv);

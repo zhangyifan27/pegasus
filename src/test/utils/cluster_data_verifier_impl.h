@@ -5,6 +5,7 @@
 #pragma once
 
 #include <dsn/stats/timer.h>
+#include <dsn/dist/fmt_logging.h>
 #include <boost/lexical_cast.hpp>
 
 #include "cluster_data_verifier.h"
@@ -57,12 +58,12 @@ struct insert_data : public dsn::pipeline::when<>, dsn::pipeline::result<>
                         info.partition_index,
                         info.decree,
                         info.server);
-                }
 
-                if (_tries >= 10) {
-                    dfatal("SET failed in the last 10 attempts. id={}", _progress->id);
-                } else {
-                    repeat(1_s);
+                    if (_tries >= 10) {
+                        dfatal("SET failed in the last 10 attempts. id={}", _progress->id);
+                    } else {
+                        repeat(1_s);
+                    }
                 }
             });
     }
@@ -110,10 +111,10 @@ struct verify_data : public dsn::pipeline::when<>, dsn::pipeline::result<>
                         info.partition_index,
                         info.decree,
                         info.server);
-                }
 
-                auto delay = _tries > 3 ? 1_s : 0_s;
-                repeat(delay);
+                    auto delay = _tries > 3 ? 1_s : 0_s;
+                    repeat(delay);
+                }
             });
     }
 
