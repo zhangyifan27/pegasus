@@ -9,22 +9,23 @@
 
 using namespace pegasus;
 
-DEFINE_string(remote_cluster, "", "");
-DEFINE_string(local_cluster, "", "");
-DEFINE_string(table_name, "", "");
+DEFINE_string(slave_cluster, "slave", "");
+DEFINE_string(master_cluster, "master", "");
+DEFINE_string(table_name, "temp", "");
 
 int main(int argc, char **argv)
 {
     gflags::ParseCommandLineFlags(&argc, &argv, true);
 
     test::init_pegasus_client();
-    auto insert_client = test::must_get_client(FLAGS_local_cluster, FLAGS_table_name);
-    auto verify_client = test::must_get_client(FLAGS_remote_cluster, FLAGS_table_name);
+    auto insert_client = test::must_get_client(FLAGS_master_cluster, FLAGS_table_name);
+    auto verify_client = test::must_get_client(FLAGS_slave_cluster, FLAGS_table_name);
 
     test::data_verifier verifier(insert_client, verify_client, "duplication_test_");
     verifier.run_pipeline();
 
     test::data_verifier::histogram_printer.run_pipeline();
 
+    verifier.wait_all();
     return 0;
 }

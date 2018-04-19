@@ -1,5 +1,4 @@
 set(MY_PROJ_NAME "pegasus_test_utils_test")
-project(${MY_PROJ_NAME} C CXX)
 
 set(MY_SRC_SEARCH_MODE "GLOB")
 

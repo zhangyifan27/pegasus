@@ -9,6 +9,7 @@
 #include <pegasus/client.h>
 #include <gflags/gflags.h>
 #include <dsn/stats/histogram.h>
+#include <client_lib/pegasus_client_impl.h>
 
 namespace pegasus {
 namespace test {
@@ -18,7 +19,7 @@ struct insert_data;
 struct recover_break_point;
 
 // data_verifier is used to verify if pegasus is in good state during monkey test or
-// complicated situations like upgrading.
+// complicated situations like upgrading. It's not used for making pressure.
 struct data_verifier : dsn::pipeline::base
 {
     data_verifier(pegasus_client *client, dsn::string_view data_prefix);
