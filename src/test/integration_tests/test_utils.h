@@ -5,7 +5,6 @@
 #pragma once
 
 #include <dsn/dist/fmt_logging.h>
-#include <dsn/cpp/address.h>
 #include <dsn/dist/replication/replication_other_types.h>
 
 namespace pegasus {

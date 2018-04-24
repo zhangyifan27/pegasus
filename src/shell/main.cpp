@@ -68,7 +68,8 @@ command_executor commands[] = {
     {
         "create",
         "create an app",
-        "app_name [--partition_count|-p NUMBER] [--replica_count|-r NUMBER]",
+        "app_name [--partition_count|-p NUMBER] [--replica_count|-r NUMBER] "
+        "[--envs|-e k1=v1,k2=v2...]",
         create_app,
     },
     {
@@ -343,6 +344,15 @@ command_executor commands[] = {
     {"remove_dup", "remove duplication of app", "<app_name> <dup_id>", remove_dup},
     {"start_dup", "start duplication of app", "<app_name> <dup_id>", start_dup},
     {"pause_dup", "pause duplicaton of app", "<app_name> <dup_id>", pause_dup},
+    {
+        "set_app_envs", "set current app envs", "<key1> <value1> <key2> <value2> ...", set_app_envs,
+    },
+    {
+        "del_app_envs", "delete current app envs", "<key1> <key2> ...", del_app_envs,
+    },
+    {
+        "clear_app_envs", "clear current app envs", "<-a|--all> <-p|--prefix str>", clear_app_envs,
+    },
     {
         "exit", "exit shell", "", exit_shell,
     },
