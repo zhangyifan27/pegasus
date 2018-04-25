@@ -47,7 +47,7 @@ class pegasus_server_impl;
 
 /// Handle the write requests.
 /// As the signatures imply, this class is not responsible for replying the rpc,
-/// the caller(pegasus_server_impl) should do it.
+/// the caller(pegasus_server_impl) should do.
 /// \see pegasus::server::pegasus_server_impl::on_batched_write_requests
 class pegasus_write_service
 {

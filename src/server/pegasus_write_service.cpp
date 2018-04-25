@@ -128,7 +128,7 @@ void pegasus_write_service::batch_prepare()
 int pegasus_write_service::empty_put(const db_write_context &ctx)
 {
     std::string empty_key, empty_value;
-    _impl->db_write_batch_put(empty_key, empty_value, 0, ctx);
+    _impl->db_write_batch_put(ctx, empty_key, empty_value, 0);
     return _impl->db_write(ctx.decree);
 }
 
