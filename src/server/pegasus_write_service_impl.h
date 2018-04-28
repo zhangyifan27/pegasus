@@ -4,7 +4,7 @@
 
 #include "pegasus_write_service.h"
 #include "pegasus_server_impl.h"
-#include "rocksdb_logging.h"
+#include "logging_utils.h"
 
 #include "base/pegasus_key_schema.h"
 
@@ -18,12 +18,13 @@ static inline dsn::blob composite_raw_key(dsn::string_view hash_key, dsn::string
     return raw_key;
 }
 
-class pegasus_write_service::impl
+class pegasus_write_service::impl : public dsn::replication::replica_base
 {
 public:
     explicit impl(pegasus_server_impl *server)
-        : _server(server),
-          _gpid(server->_gpid),
+        : replica_base(*server),
+          _server(server),
+          _gpid(server->get_gpid()),
           _verbose_log(server->_verbose_log),
           _primary_address(server->_primary_address),
           _value_schema_version(server->_value_schema_version),
@@ -47,9 +48,8 @@ public:
 
         if (update.kvs.empty()) {
             // invalid argument
-            derror("%s: invalid argument for multi_put: decree = %" PRId64 ", error = empty kvs",
-                   replica_name(),
-                   ctx.decree);
+            derror_replica("invalid argument for multi_put: decree = {}, error = empty kvs",
+                           ctx.decree);
 
             // an invalid operation shouldn't be added to latency calculation TODO(wutao1): why?
             resp.error = rocksdb::Status::kInvalidArgument;
@@ -80,10 +80,9 @@ public:
 
         if (update.sort_keys.empty()) {
             // invalid argument
-            derror("%s: invalid argument for multi_remove: decree = %" PRId64
-                   ", error = empty sort keys",
-                   replica_name(),
-                   ctx.decree);
+            derror_replica(
+                "invalid argument for multi_remove: decree = {}, error = empty sort keys",
+                ctx.decree);
 
             // an invalid operation shoundn't be added to latency calculation
             resp.error = rocksdb::Status::kInvalidArgument;
@@ -161,20 +160,19 @@ public:
                     /// ignore if this is a retry attempt from remote.
                     return 0;
                 }
-                dassert_f(local_timetag != new_timetag,
-                          "timestamps are generated having the same value: [timetag:{}, "
-                          "raw_key:{}, raw_value:{}]",
-                          local_timetag,
-                          raw_key,
-                          raw_value);
+                dassert_replica(local_timetag != new_timetag,
+                                "timestamps are generated having the same value: [timetag:{}, "
+                                "raw_key:{}, raw_value:{}]",
+                                local_timetag,
+                                raw_key,
+                                raw_value);
 
                 if (local_timetag > new_timetag) {
-                    ddebug_f("[gpid: {}] ignored a stale update with lower timetag [new: "
-                             "{}, local: {}, from_remote: {}]",
-                             _gpid,
-                             new_timetag,
-                             local_timetag,
-                             is_remote_update);
+                    ddebug_replica("ignored a stale update with lower timetag [new: "
+                                   "{}, local: {}, from_remote: {}]",
+                                   new_timetag,
+                                   local_timetag,
+                                   is_remote_update);
                     return 0;
                 }
             } else if (s.code() != rocksdb::Status::kNotFound) {
@@ -216,8 +214,6 @@ public:
         _batch.Clear();
         return status.code();
     }
-
-    const char *replica_name() const { return _server->replica_name(); }
 
 private:
     pegasus_server_impl *_server;

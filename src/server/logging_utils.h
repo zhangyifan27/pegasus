@@ -6,7 +6,7 @@
 
 #include <dsn/dist/fmt_logging.h>
 
-/// This file contains utilities for logging about the operation on rocksdb.
+/// Utilities for logging the operation on rocksdb.
 /// It should only be used in pegasus_sever_impl.
 
 #define derror_rocksdb(op, error, ...)                                                             \
