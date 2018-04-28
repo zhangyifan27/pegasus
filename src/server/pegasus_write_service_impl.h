@@ -162,8 +162,11 @@ public:
                     return 0;
                 }
                 dassert_f(local_timetag != new_timetag,
-                          "timestamps are generated having the same value {}",
-                          local_timetag);
+                          "timestamps are generated having the same value: [timetag:{}, "
+                          "raw_key:{}, raw_value:{}]",
+                          local_timetag,
+                          raw_key,
+                          raw_value);
 
                 if (local_timetag > new_timetag) {
                     ddebug_f("[gpid: {}] ignored a stale update with lower timetag [new: "

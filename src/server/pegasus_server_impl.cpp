@@ -1532,15 +1532,6 @@ private:
     if (!token_helper.token_got())
         return ::dsn::ERR_WRONG_TIMING;
 
-    { // synchronously flush
-        rocksdb::FlushOptions options;
-        options.wait = true;
-        auto status = _db->Flush(options);
-        if (!status.ok() && !status.IsNoNeedOperate()) {
-            derror_replica("failed to flush memtable: {}", status.ToString());
-        }
-    }
-
     int64_t last_commit = last_committed_decree();
     if (last_durable_decree() == last_commit)
         return ::dsn::ERR_NO_NEED_OPERATE;
@@ -1600,11 +1591,6 @@ private:
                 "%" PRId64 " VS %" PRId64 "",
                 last_commit,
                 last_durable_decree());
-        uint64_t last_flushed_decree = _db->GetLastFlushedDecree();
-        dassert(last_commit == last_flushed_decree,
-                "must equal: %zu VS %zu",
-                last_commit,
-                last_flushed_decree);
         if (!_checkpoints.empty()) {
             dassert(last_commit > _checkpoints.back(),
                     "%" PRId64 " VS %" PRId64 "",
