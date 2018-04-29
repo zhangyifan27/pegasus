@@ -4,6 +4,7 @@ set(MY_PROJ_NAME pegasus_unit_test)
 #You can manually set MY_PROJ_SRC to include source files under other directories.
 set(MY_PROJ_SRC "../pegasus_server_impl.cpp"
                 "../pegasus_write_service.cpp"
+                "../pegasus_server_write.cpp"
                 "../pegasus_perf_counter.cpp"
                 "../pegasus_counter_updater.cpp"
                 "../pegasus_duplication_backlog_handler.cpp")

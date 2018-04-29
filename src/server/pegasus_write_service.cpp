@@ -11,8 +11,7 @@ namespace server {
 pegasus_write_service::pegasus_write_service(pegasus_server_impl *server)
     : _impl(new impl(server)), _batch_start_time(0)
 {
-    std::string str_gpid =
-        fmt::format("{}.{}", server->_gpid.get_app_id(), server->_gpid.get_partition_index());
+    std::string str_gpid = fmt::format("{}", server->get_gpid());
 
     std::string name;
 

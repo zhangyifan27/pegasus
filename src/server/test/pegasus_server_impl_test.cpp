@@ -5,14 +5,22 @@
 #include "pegasus_server_test_base.h"
 #include "message_utils.h"
 
+#include "server/pegasus_server_write.h"
 #include "base/pegasus_key_schema.h"
 
 namespace pegasus {
 namespace server {
 
-class pegasus_sever_impl_test : public pegasus_server_test_base
+class pegasus_server_write_test : public pegasus_server_test_base
 {
+    std::unique_ptr<pegasus_server_write> _server_write;
+
 public:
+    pegasus_server_write_test() : pegasus_server_test_base()
+    {
+        _server_write = dsn::make_unique<pegasus_server_write>(_server.get());
+    }
+
     void test_duplicate_not_batched()
     {
         std::string hash_key = "hash_key";
@@ -41,7 +49,7 @@ public:
             duplicate.task_code = dsn::apps::RPC_RRDB_RRDB_MULTI_PUT;
             duplicate.raw_message = dsn::move_message_to_blob(mput_msg);
 
-            _server->on_duplicate_impl(false, duplicate, resp);
+            _server_write->on_duplicate_impl(false, duplicate, resp);
             ASSERT_EQ(resp.error, 0);
         }
 
@@ -56,7 +64,7 @@ public:
             duplicate.task_code = dsn::apps::RPC_RRDB_RRDB_MULTI_REMOVE;
             duplicate.raw_message = dsn::move_message_to_blob(mremove_msg);
 
-            _server->on_duplicate_impl(false, duplicate, resp);
+            _server_write->on_duplicate_impl(false, duplicate, resp);
             ASSERT_EQ(resp.error, 0);
         }
     }
@@ -86,16 +94,16 @@ public:
                 duplicate.raw_message =
                     dsn::move_message_to_blob(pegasus::create_put_request(request));
                 duplicate.task_code = dsn::apps::RPC_RRDB_RRDB_PUT;
-                _server->on_duplicate_impl(true, duplicate, resp);
+                _server_write->on_duplicate_impl(true, duplicate, resp);
                 ASSERT_EQ(resp.error, 0);
             }
         }
     }
 };
 
-TEST_F(pegasus_sever_impl_test, duplicate_not_batched) { test_duplicate_not_batched(); }
+TEST_F(pegasus_server_write_test, duplicate_not_batched) { test_duplicate_not_batched(); }
 
-TEST_F(pegasus_sever_impl_test, duplicate_batched) { test_duplicate_batched(); }
+TEST_F(pegasus_server_write_test, duplicate_batched) { test_duplicate_batched(); }
 
 } // namespace server
 } // namespace pegasus

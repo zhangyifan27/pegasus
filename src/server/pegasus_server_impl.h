@@ -21,6 +21,8 @@
 namespace pegasus {
 namespace server {
 
+class pegasus_server_write;
+
 class pegasus_server_impl : public ::dsn::apps::rrdb_service
 {
 public:
@@ -31,7 +33,8 @@ public:
         register_rpc_handlers();
     }
     explicit pegasus_server_impl(dsn::replication::replica *r);
-    virtual ~pegasus_server_impl() {}
+
+    ~pegasus_server_impl() override;
 
     // the following methods may set physical error if internal error occurs
     virtual void on_get(const ::dsn::blob &key,
@@ -146,56 +149,6 @@ public:
             _value_schema_version, epoch_now, to_string_view(raw_value));
     }
 
-    /// =============================================================== ///
-    /// === Methods for implementation of on_batched_write_requests === ///
-    /// =============================================================== ///
-
-    int on_batched_write_requests_impl(dsn_message_t *requests,
-                                       int count,
-                                       int64_t decree,
-                                       uint64_t timestamp);
-
-    void on_multi_put(multi_put_rpc &rpc)
-    {
-        _write_svc->multi_put(_put_ctx, rpc.request(), rpc.response());
-    }
-
-    void on_multi_remove(multi_remove_rpc &rpc)
-    {
-        _write_svc->multi_remove(_remove_ctx, rpc.request(), rpc.response());
-    }
-
-    void on_duplicate(duplicate_rpc &rpc)
-    {
-        on_duplicate_impl(false, rpc.request(), rpc.response());
-    }
-
-    void on_duplicate_impl(bool batched,
-                           const dsn::apps::duplicate_request &request,
-                           dsn::apps::duplicate_response &resp);
-
-    /// Delay replying for the batched requests until all of them completes.
-    int on_batched_writes(dsn_message_t *requests, int count, int64_t decree);
-
-    void on_single_put_in_batch(put_rpc &rpc)
-    {
-        _write_svc->batch_put(_put_ctx, rpc.request(), rpc.response());
-        request_key_check(_put_ctx.decree, rpc.dsn_request(), rpc.request().key);
-    }
-
-    void on_single_remove_in_batch(remove_rpc &rpc)
-    {
-        _write_svc->batch_remove(_remove_ctx, rpc.request(), rpc.response());
-        request_key_check(_remove_ctx.decree, rpc.dsn_request(), rpc.request());
-    }
-
-    void on_single_duplicate_in_batch(duplicate_rpc &rpc)
-    {
-        on_duplicate_impl(true, rpc.request(), rpc.response());
-    }
-
-    void request_key_check(int64_t decree, dsn_message_t m, const dsn::blob &key);
-
 private:
     // parse checkpoint directories in the data dir
     // checkpoint directory format is: "checkpoint.{decree}"
@@ -247,7 +200,7 @@ private:
 
     virtual void update_app_envs(const std::map<std::string, std::string> &envs);
 
-    virtual void query_app_envs(/*out*/std::map<std::string, std::string> &envs);
+    virtual void query_app_envs(/*out*/ std::map<std::string, std::string> &envs);
 
     // get the absolute path of restore directory and the flag whether force restore from env
     // return
@@ -263,9 +216,8 @@ private:
     bool set_options(const std::unordered_map<std::string, std::string> &new_options);
 
 private:
+    friend class pegasus_server_write;
     friend class pegasus_write_service;
-    friend class pegasus_write_service_test;
-    friend class pegasus_sever_impl_test;
 
     dsn::gpid _gpid;
     std::string _primary_address;
@@ -289,12 +241,7 @@ private:
     uint32_t _value_schema_version;
     std::atomic<int64_t> _last_durable_decree;
 
-    std::unique_ptr<pegasus_write_service> _write_svc;
-    std::vector<put_rpc> _put_rpc_batch;
-    std::vector<remove_rpc> _remove_rpc_batch;
-    std::vector<duplicate_rpc> _batched_duplicate_rpc_batch;
-    db_write_context _put_ctx;
-    db_write_context _remove_ctx;
+    std::unique_ptr<pegasus_server_write> _server_write;
 
     uint32_t _checkpoint_reserve_min_count;
     uint32_t _checkpoint_reserve_time_seconds;

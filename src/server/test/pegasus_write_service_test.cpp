@@ -4,6 +4,7 @@
 
 #include "base/pegasus_key_schema.h"
 #include "pegasus_server_test_base.h"
+#include "server/pegasus_server_write.h"
 
 #include <dsn/dist/fmt_logging.h>
 
@@ -12,10 +13,15 @@ namespace server {
 
 class pegasus_write_service_test : public pegasus_server_test_base
 {
+protected:
+    pegasus_write_service *_write_svc;
+    std::unique_ptr<pegasus_server_write> _server_write;
+
 public:
     pegasus_write_service_test() : pegasus_server_test_base()
     {
-        _write_svc = _server->_write_svc.get();
+        _server_write = dsn::make_unique<pegasus_server_write>(_server.get());
+        _write_svc = _server_write->_write_svc.get();
     }
 
     void test_multi_put()
@@ -129,9 +135,6 @@ public:
             ASSERT_EQ(resp.decree, decree);
         }
     }
-
-protected:
-    pegasus_write_service *_write_svc;
 };
 
 TEST_F(pegasus_write_service_test, multi_put) { test_multi_put(); }
