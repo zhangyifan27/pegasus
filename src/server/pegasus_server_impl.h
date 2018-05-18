@@ -60,6 +60,8 @@ public:
     //  - ERR_LOCAL_APP_FAILURE
     virtual ::dsn::error_code start(int argc, char **argv) override;
 
+    virtual bool prepare_close() override;
+
     // returns:
     //  - ERR_OK
     //  - ERR_FILE_OPERATION_FAILED
@@ -236,6 +238,7 @@ private:
 
     pegasus_context_cache _context_cache;
 
+    ::dsn::task_ptr _updating_rocksdb_sstsize_timer_task;
     uint32_t _updating_rocksdb_sstsize_interval_seconds;
 
     dsn::task_tracker _tracker;

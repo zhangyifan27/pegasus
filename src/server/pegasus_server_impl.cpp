@@ -1806,7 +1806,7 @@ void pegasus_server_impl::on_clear_scanner(const int64_t &args) { _context_cache
         _is_open = true;
 
         dinfo("%s: start the updating sstsize timer task", replica_name());
-        ::dsn::tasking::enqueue_timer(
+        _updating_rocksdb_sstsize_timer_task = ::dsn::tasking::enqueue_timer(
             LPC_UPDATING_ROCKSDB_SSTSIZE,
             &_tracker,
             [this]() { this->updating_rocksdb_sstsize(); },
@@ -1819,6 +1819,22 @@ void pegasus_server_impl::on_clear_scanner(const int64_t &args) { _context_cache
         derror("%s: open app failed, error = %s", replica_name(), status.ToString().c_str());
         return ::dsn::ERR_LOCAL_APP_FAILURE;
     }
+}
+
+bool pegasus_server_impl::prepare_close()
+{
+    if (_updating_rocksdb_sstsize_timer_task != nullptr) {
+        _updating_rocksdb_sstsize_timer_task->cancel(true);
+        _updating_rocksdb_sstsize_timer_task = nullptr;
+    }
+
+    int not_finished = _tracker.cancel_but_not_wait_outstanding_tasks();
+    if (not_finished != 0) {
+        ddebug("%s: still %d tracked tasks depending on this pegasus_server_impl not finished",
+               replica_name(),
+               not_finished);
+    }
+    return not_finished == 0;
 }
 
 ::dsn::error_code pegasus_server_impl::stop(bool clear_state)
