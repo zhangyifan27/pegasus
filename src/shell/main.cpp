@@ -173,7 +173,24 @@ static command_executor commands[] = {
         data_operations,
     },
     {
-        "incr", "increment value of a key", "<hash_key> <sort_key> [increment]", data_operations,
+        "incr",
+        "atomically increment value of a key",
+        "<hash_key> <sort_key> [increment]",
+        data_operations,
+    },
+    {
+        "check_and_set",
+        "atomically check and set value",
+        "<hash_key> "
+        "[-c|--check_sort_key str] "
+        "[-t|--check_type "
+        "not_exist|exist|not_empty|equal|match_anywhere|match_prefix|match_postfix] "
+        "[-o|--check_oprand str] "
+        "[-s|--set_sort_key str] "
+        "[-v|--set_value str] "
+        "[-l|--set_value_ttl_seconds num] "
+        "[-r|--return_check_value]",
+        data_operations,
     },
     {
         "exist", "check value exist", "<hash_key> <sort_key>", data_operations,
@@ -210,7 +227,8 @@ static command_executor commands[] = {
         "copy_data",
         "copy app data",
         "<-c|--target_cluster_name str> <-a|--target_app_name str> "
-        "[-s|--max_split_count num] [-b|--max_batch_count num] [-t|--timeout_ms num] [-g|--geo_data]",
+        "[-s|--max_split_count num] [-b|--max_batch_count num] [-t|--timeout_ms num] "
+        "[-g|--geo_data]",
         data_operations,
     },
     {
