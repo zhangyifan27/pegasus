@@ -827,7 +827,7 @@ void pegasus_client_impl::async_incr(const std::string &hash_key,
 int pegasus_client_impl::check_and_set(const std::string &hash_key,
                                        const std::string &check_sort_key,
                                        cas_check_type check_type,
-                                       const std::string &check_oprand,
+                                       const std::string &check_operand,
                                        const std::string &set_sort_key,
                                        const std::string &set_value,
                                        const check_and_set_options &options,
@@ -847,7 +847,7 @@ int pegasus_client_impl::check_and_set(const std::string &hash_key,
     async_check_and_set(hash_key,
                         check_sort_key,
                         check_type,
-                        check_oprand,
+                        check_operand,
                         set_sort_key,
                         set_value,
                         options,
@@ -860,7 +860,7 @@ int pegasus_client_impl::check_and_set(const std::string &hash_key,
 void pegasus_client_impl::async_check_and_set(const std::string &hash_key,
                                               const std::string &check_sort_key,
                                               cas_check_type check_type,
-                                              const std::string &check_oprand,
+                                              const std::string &check_operand,
                                               const std::string &set_sort_key,
                                               const std::string &set_value,
                                               const check_and_set_options &options,
@@ -880,7 +880,7 @@ void pegasus_client_impl::async_check_and_set(const std::string &hash_key,
     req.hash_key.assign(hash_key.c_str(), 0, hash_key.size());
     req.check_sort_key.assign(check_sort_key.c_str(), 0, check_sort_key.size());
     req.check_type = (dsn::apps::cas_check_type::type)check_type;
-    req.check_oprand.assign(check_oprand.c_str(), 0, check_oprand.size());
+    req.check_operand.assign(check_operand.c_str(), 0, check_operand.size());
     if (check_sort_key != set_sort_key) {
         req.set_diff_sort_key = true;
         req.set_sort_key.assign(set_sort_key.c_str(), 0, set_sort_key.size());

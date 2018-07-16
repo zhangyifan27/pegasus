@@ -141,7 +141,7 @@ struct check_and_set_request
     1:dsn.blob       hash_key;
     2:dsn.blob       check_sort_key;
     3:cas_check_type check_type;
-    4:dsn.blob       check_oprand;
+    4:dsn.blob       check_operand;
     5:bool           set_diff_sort_key; // if set different sort key with check_sort_key
     6:dsn.blob       set_sort_key; // used only if set_diff_sort_key is true
     7:dsn.blob       set_value;

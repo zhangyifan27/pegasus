@@ -1351,8 +1351,8 @@ inline bool check_and_set(command_executor *e, shell_context *sc, arguments args
     std::string check_sort_key;
     pegasus::pegasus_client::cas_check_type check_type = pegasus::pegasus_client::CT_NO_CHECK;
     std::string check_type_name;
-    bool check_oprand_provided = false;
-    std::string check_oprand;
+    bool check_operand_provided = false;
+    std::string check_operand;
     bool set_sort_key_provided = false;
     std::string set_sort_key;
     bool set_value_provided = false;
@@ -1361,7 +1361,7 @@ inline bool check_and_set(command_executor *e, shell_context *sc, arguments args
 
     static struct option long_options[] = {{"check_sort_key", required_argument, 0, 'c'},
                                            {"check_type", required_argument, 0, 't'},
-                                           {"check_oprand", required_argument, 0, 'o'},
+                                           {"check_operand", required_argument, 0, 'o'},
                                            {"set_sort_key", required_argument, 0, 's'},
                                            {"set_value", required_argument, 0, 'v'},
                                            {"set_value_ttl_seconds", required_argument, 0, 'l'},
@@ -1389,8 +1389,8 @@ inline bool check_and_set(command_executor *e, shell_context *sc, arguments args
             check_type_name = optarg;
             break;
         case 'o':
-            check_oprand_provided = true;
-            check_oprand = unescape_str(optarg);
+            check_operand_provided = true;
+            check_operand = unescape_str(optarg);
             break;
         case 's':
             set_sort_key_provided = true;
@@ -1422,9 +1422,9 @@ inline bool check_and_set(command_executor *e, shell_context *sc, arguments args
         fprintf(stderr, "ERROR: check_type not provided\n");
         return false;
     }
-    if (!check_oprand_provided && check_type >= pegasus::pegasus_client::CT_VALUE_EQUAL &&
+    if (!check_operand_provided && check_type >= pegasus::pegasus_client::CT_VALUE_EQUAL &&
         check_type <= pegasus::pegasus_client::CT_VALUE_MATCH_POSTFIX) {
-        fprintf(stderr, "ERROR: check_oprand not provided\n");
+        fprintf(stderr, "ERROR: check_operand not provided\n");
         return false;
     }
     if (!set_sort_key_provided) {
@@ -1444,8 +1444,8 @@ inline bool check_and_set(command_executor *e, shell_context *sc, arguments args
     if (check_type >= pegasus::pegasus_client::CT_VALUE_EQUAL &&
         check_type <= pegasus::pegasus_client::CT_VALUE_MATCH_POSTFIX) {
         fprintf(stderr,
-                "check_oprand: \"%s\"\n",
-                pegasus::utils::c_escape_string(check_oprand).c_str());
+                "check_operand: \"%s\"\n",
+                pegasus::utils::c_escape_string(check_operand).c_str());
     }
     fprintf(
         stderr, "set_sort_key: \"%s\"\n", pegasus::utils::c_escape_string(set_sort_key).c_str());
@@ -1459,7 +1459,7 @@ inline bool check_and_set(command_executor *e, shell_context *sc, arguments args
     int ret = sc->pg_client->check_and_set(hash_key,
                                            check_sort_key,
                                            check_type,
-                                           check_oprand,
+                                           check_operand,
                                            set_sort_key,
                                            set_value,
                                            options,

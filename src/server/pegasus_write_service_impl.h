@@ -254,7 +254,7 @@ public:
                 _value_schema_version, std::move(check_raw_value), check_value);
         }
 
-        bool passed = validate_check(update.check_type, update.check_oprand, s.ok(), check_value);
+        bool passed = validate_check(update.check_type, update.check_operand, s.ok(), check_value);
         if (passed) {
             // check passed, write new value
             ::dsn::blob set_key;
@@ -423,7 +423,7 @@ private:
 
     // return true if the data is valid for the check
     bool validate_check(::dsn::apps::cas_check_type::type check_type,
-                        const ::dsn::blob &check_oprand,
+                        const ::dsn::blob &check_operand,
                         bool value_exist,
                         const ::dsn::blob &value)
     {
@@ -437,36 +437,36 @@ private:
         case ::dsn::apps::cas_check_type::CT_VALUE_NOT_EMPTY:
             return value_exist && value.length() != 0;
         case ::dsn::apps::cas_check_type::CT_VALUE_EQUAL:
-            return value_exist && value.length() == check_oprand.length() &&
-                   ::memcmp(value.data(), check_oprand.data(), check_oprand.length()) == 0;
+            return value_exist && value.length() == check_operand.length() &&
+                   ::memcmp(value.data(), check_operand.data(), check_operand.length()) == 0;
         case ::dsn::apps::cas_check_type::CT_VALUE_MATCH_ANYWHERE: {
             if (!value_exist)
                 return false;
-            if (check_oprand.length() == 0)
+            if (check_operand.length() == 0)
                 return true;
-            if (value.length() < check_oprand.length())
+            if (value.length() < check_operand.length())
                 return false;
-            return dsn::string_view(value).find(check_oprand) != dsn::string_view::npos;
+            return dsn::string_view(value).find(check_operand) != dsn::string_view::npos;
         }
         case ::dsn::apps::cas_check_type::CT_VALUE_MATCH_PREFIX: {
             if (!value_exist)
                 return false;
-            if (check_oprand.length() == 0)
+            if (check_operand.length() == 0)
                 return true;
-            if (value.length() < check_oprand.length())
+            if (value.length() < check_operand.length())
                 return false;
-            return ::memcmp(value.data(), check_oprand.data(), check_oprand.length()) == 0;
+            return ::memcmp(value.data(), check_operand.data(), check_operand.length()) == 0;
         }
         case ::dsn::apps::cas_check_type::CT_VALUE_MATCH_POSTFIX: {
             if (!value_exist)
                 return false;
-            if (check_oprand.length() == 0)
+            if (check_operand.length() == 0)
                 return true;
-            if (value.length() < check_oprand.length())
+            if (value.length() < check_operand.length())
                 return false;
-            return ::memcmp(value.data() + value.length() - check_oprand.length(),
-                            check_oprand.data(),
-                            check_oprand.length()) == 0;
+            return ::memcmp(value.data() + value.length() - check_operand.length(),
+                            check_operand.data(),
+                            check_operand.length()) == 0;
         }
         default:
             dassert(false, "unsupported check type: %d", check_type);

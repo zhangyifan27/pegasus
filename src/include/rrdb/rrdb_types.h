@@ -1040,7 +1040,7 @@ typedef struct _check_and_set_request__isset
         : hash_key(false),
           check_sort_key(false),
           check_type(false),
-          check_oprand(false),
+          check_operand(false),
           set_diff_sort_key(false),
           set_sort_key(false),
           set_value(false),
@@ -1051,7 +1051,7 @@ typedef struct _check_and_set_request__isset
     bool hash_key : 1;
     bool check_sort_key : 1;
     bool check_type : 1;
-    bool check_oprand : 1;
+    bool check_operand : 1;
     bool set_diff_sort_key : 1;
     bool set_sort_key : 1;
     bool set_value : 1;
@@ -1078,7 +1078,7 @@ public:
     ::dsn::blob hash_key;
     ::dsn::blob check_sort_key;
     cas_check_type::type check_type;
-    ::dsn::blob check_oprand;
+    ::dsn::blob check_operand;
     bool set_diff_sort_key;
     ::dsn::blob set_sort_key;
     ::dsn::blob set_value;
@@ -1093,7 +1093,7 @@ public:
 
     void __set_check_type(const cas_check_type::type val);
 
-    void __set_check_oprand(const ::dsn::blob &val);
+    void __set_check_operand(const ::dsn::blob &val);
 
     void __set_set_diff_sort_key(const bool val);
 
@@ -1113,7 +1113,7 @@ public:
             return false;
         if (!(check_type == rhs.check_type))
             return false;
-        if (!(check_oprand == rhs.check_oprand))
+        if (!(check_operand == rhs.check_operand))
             return false;
         if (!(set_diff_sort_key == rhs.set_diff_sort_key))
             return false;

@@ -794,8 +794,8 @@ public:
     /// the sort key to check.
     /// \param check_type
     /// the check type.
-    /// \param check_oprand
-    /// the check oprand.
+    /// \param check_operand
+    /// the check operand.
     /// \param set_sort_key
     /// the sort key to set value if check passed.
     /// \param set_value
@@ -813,7 +813,7 @@ public:
     virtual int check_and_set(const std::string &hash_key,
                               const std::string &check_sort_key,
                               cas_check_type check_type,
-                              const std::string &check_oprand,
+                              const std::string &check_operand,
                               const std::string &set_sort_key,
                               const std::string &set_value,
                               const check_and_set_options &options,
@@ -831,8 +831,8 @@ public:
     /// the sort key to check.
     /// \param check_type
     /// the check type.
-    /// \param check_oprand
-    /// the check oprand.
+    /// \param check_operand
+    /// the check operand.
     /// \param set_sort_key
     /// the sort key to set value if check passed.
     /// \param set_value
@@ -849,7 +849,7 @@ public:
     virtual void async_check_and_set(const std::string &hash_key,
                                      const std::string &check_sort_key,
                                      cas_check_type check_type,
-                                     const std::string &check_oprand,
+                                     const std::string &check_operand,
                                      const std::string &set_sort_key,
                                      const std::string &set_value,
                                      const check_and_set_options &options,

@@ -185,7 +185,7 @@ static command_executor commands[] = {
         "[-c|--check_sort_key str] "
         "[-t|--check_type "
         "not_exist|exist|not_empty|equal|match_anywhere|match_prefix|match_postfix] "
-        "[-o|--check_oprand str] "
+        "[-o|--check_operand str] "
         "[-s|--set_sort_key str] "
         "[-v|--set_value str] "
         "[-l|--set_value_ttl_seconds num] "

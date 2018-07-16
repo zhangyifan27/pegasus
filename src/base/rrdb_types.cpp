@@ -2419,7 +2419,10 @@ void check_and_set_request::__set_check_type(const cas_check_type::type val)
     this->check_type = val;
 }
 
-void check_and_set_request::__set_check_oprand(const ::dsn::blob &val) { this->check_oprand = val; }
+void check_and_set_request::__set_check_operand(const ::dsn::blob &val)
+{
+    this->check_operand = val;
+}
 
 void check_and_set_request::__set_set_diff_sort_key(const bool val)
 {
@@ -2487,8 +2490,8 @@ uint32_t check_and_set_request::read(::apache::thrift::protocol::TProtocol *ipro
             break;
         case 4:
             if (ftype == ::apache::thrift::protocol::T_STRUCT) {
-                xfer += this->check_oprand.read(iprot);
-                this->__isset.check_oprand = true;
+                xfer += this->check_operand.read(iprot);
+                this->__isset.check_operand = true;
             } else {
                 xfer += iprot->skip(ftype);
             }
@@ -2563,8 +2566,8 @@ uint32_t check_and_set_request::write(::apache::thrift::protocol::TProtocol *opr
     xfer += oprot->writeI32((int32_t)this->check_type);
     xfer += oprot->writeFieldEnd();
 
-    xfer += oprot->writeFieldBegin("check_oprand", ::apache::thrift::protocol::T_STRUCT, 4);
-    xfer += this->check_oprand.write(oprot);
+    xfer += oprot->writeFieldBegin("check_operand", ::apache::thrift::protocol::T_STRUCT, 4);
+    xfer += this->check_operand.write(oprot);
     xfer += oprot->writeFieldEnd();
 
     xfer += oprot->writeFieldBegin("set_diff_sort_key", ::apache::thrift::protocol::T_BOOL, 5);
@@ -2598,7 +2601,7 @@ void swap(check_and_set_request &a, check_and_set_request &b)
     swap(a.hash_key, b.hash_key);
     swap(a.check_sort_key, b.check_sort_key);
     swap(a.check_type, b.check_type);
-    swap(a.check_oprand, b.check_oprand);
+    swap(a.check_operand, b.check_operand);
     swap(a.set_diff_sort_key, b.set_diff_sort_key);
     swap(a.set_sort_key, b.set_sort_key);
     swap(a.set_value, b.set_value);
@@ -2612,7 +2615,7 @@ check_and_set_request::check_and_set_request(const check_and_set_request &other7
     hash_key = other78.hash_key;
     check_sort_key = other78.check_sort_key;
     check_type = other78.check_type;
-    check_oprand = other78.check_oprand;
+    check_operand = other78.check_operand;
     set_diff_sort_key = other78.set_diff_sort_key;
     set_sort_key = other78.set_sort_key;
     set_value = other78.set_value;
@@ -2625,7 +2628,7 @@ check_and_set_request::check_and_set_request(check_and_set_request &&other79)
     hash_key = std::move(other79.hash_key);
     check_sort_key = std::move(other79.check_sort_key);
     check_type = std::move(other79.check_type);
-    check_oprand = std::move(other79.check_oprand);
+    check_operand = std::move(other79.check_operand);
     set_diff_sort_key = std::move(other79.set_diff_sort_key);
     set_sort_key = std::move(other79.set_sort_key);
     set_value = std::move(other79.set_value);
@@ -2638,7 +2641,7 @@ check_and_set_request &check_and_set_request::operator=(const check_and_set_requ
     hash_key = other80.hash_key;
     check_sort_key = other80.check_sort_key;
     check_type = other80.check_type;
-    check_oprand = other80.check_oprand;
+    check_operand = other80.check_operand;
     set_diff_sort_key = other80.set_diff_sort_key;
     set_sort_key = other80.set_sort_key;
     set_value = other80.set_value;
@@ -2652,7 +2655,7 @@ check_and_set_request &check_and_set_request::operator=(check_and_set_request &&
     hash_key = std::move(other81.hash_key);
     check_sort_key = std::move(other81.check_sort_key);
     check_type = std::move(other81.check_type);
-    check_oprand = std::move(other81.check_oprand);
+    check_operand = std::move(other81.check_operand);
     set_diff_sort_key = std::move(other81.set_diff_sort_key);
     set_sort_key = std::move(other81.set_sort_key);
     set_value = std::move(other81.set_value);
@@ -2671,7 +2674,7 @@ void check_and_set_request::printTo(std::ostream &out) const
     out << ", "
         << "check_type=" << to_string(check_type);
     out << ", "
-        << "check_oprand=" << to_string(check_oprand);
+        << "check_operand=" << to_string(check_operand);
     out << ", "
         << "set_diff_sort_key=" << to_string(set_diff_sort_key);
     out << ", "
