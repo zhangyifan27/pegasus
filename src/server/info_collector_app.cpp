@@ -48,7 +48,7 @@ info_collector_app::~info_collector_app() {}
     return ::dsn::ERR_OK;
 }
 
-::dsn::error_code info_collector_app::stop(bool cleanup)
+void info_collector_app::stop()
 {
     if (_updater_started) {
         pegasus_counter_reporter::instance().stop();
@@ -56,7 +56,6 @@ info_collector_app::~info_collector_app() {}
 
     _collector.stop();
     _detector.stop();
-    return ::dsn::ERR_OK;
 }
 }
 } // namespace

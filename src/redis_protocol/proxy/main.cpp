@@ -52,8 +52,6 @@ public:
         return ::dsn::ERR_OK;
     }
 
-    ::dsn::error_code stop(bool) final { return ::dsn::ERR_OK; }
-
 private:
     std::unique_ptr<proxy_stub> _proxy;
 };

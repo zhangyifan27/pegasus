@@ -52,13 +52,12 @@ public:
         return ret;
     }
 
-    virtual ::dsn::error_code stop(bool cleanup = false) override
+    virtual void stop() override
     {
-        ::dsn::error_code ret = ::dsn::replication::replication_service_app::stop();
+        dsn::replication::replication_service_app::stop();
         if (_updater_started) {
             pegasus_counter_reporter::instance().stop();
         }
-        return ret;
     }
 
 private:
@@ -88,13 +87,12 @@ public:
         return ret;
     }
 
-    virtual ::dsn::error_code stop(bool cleanup = false) override
+    virtual void stop() override
     {
-        ::dsn::error_code ret = ::dsn::service::meta_service_app::stop();
+        dsn::service::meta_service_app::stop();
         if (_updater_started) {
             pegasus_counter_reporter::instance().stop();
         }
-        return ret;
     }
 
 private:

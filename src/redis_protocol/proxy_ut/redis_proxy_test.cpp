@@ -51,7 +51,6 @@ public:
         _proxy = dsn::make_unique<proxy_stub>(f, args[1].c_str(), args[2].c_str());
         return ::dsn::ERR_OK;
     }
-    ::dsn::error_code stop(bool) override { return ::dsn::ERR_OK; }
 
 private:
     std::unique_ptr<pegasus::proxy::proxy_stub> _proxy;
