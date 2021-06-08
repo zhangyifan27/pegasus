@@ -101,7 +101,7 @@ int main(int argc, char **argv)
             dsn_exit(0);
         }
     }
-    ddebug("pegasus server starting, pid(%d), version(%s)", (int)getpid(), pegasus_server_rcsid());
+    printf("pegasus server starting, pid(%d), version(%s)", (int)getpid(), pegasus_server_rcsid());
     dsn_app_registration_pegasus();
     dsn_run(argc, argv, true);
 
